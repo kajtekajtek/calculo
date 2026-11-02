@@ -1,6 +1,6 @@
 import { PositionRow } from "../api";
 import { formatShare } from "../format";
-import { OTHER_COLOR, colorFor } from "../palette";
+import { OTHER_COLOR, colorFor, colorKeys } from "../palette";
 
 const MAX_SEGMENTS = 8;
 const OTHER_KEY = "__other";
@@ -13,8 +13,8 @@ function toSegments(positions: PositionRow[], allKeys: readonly string[]): Segme
   const rest: PositionRow[] = [];
   for (const p of sorted) {
     const color = colorFor(p.key, allKeys);
-    // Beyond eight positions the tail is folded; a key without a hue of its own is folded too.
-    if (kept.length < MAX_SEGMENTS && (color !== OTHER_COLOR || sorted.length <= MAX_SEGMENTS)) {
+    // Beyond eight positions the smallest are folded into "Inne", whatever their colour.
+    if (kept.length < MAX_SEGMENTS) {
       kept.push({ key: p.key, name: p.name, value: p.value, sharePct: p.sharePct, color });
     } else {
       rest.push(p);
@@ -34,11 +34,11 @@ function toSegments(positions: PositionRow[], allKeys: readonly string[]): Segme
 
 /**
  * Thin segmented bar: one whole split into positions. No numbers on segments; the legend
- * carries names and shares. `allKeys` should list every known position key (unfiltered) so
+ * carries names and shares. `allKeys` should be `colorKeys` of the unfiltered view so
  * colours stay stable when the account filter changes.
  */
 export default function AllocationBar({ positions, allKeys }: { positions: PositionRow[]; allKeys?: readonly string[] }) {
-  const keys = allKeys ?? positions.map((p) => p.key);
+  const keys = allKeys ?? colorKeys(positions);
   const segments = toSegments(positions, keys);
   if (segments.length === 0) return null;
   const summary = segments.map((s) => `${s.name} ${formatShare(s.sharePct)}`).join(", ");

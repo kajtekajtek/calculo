@@ -19,6 +19,8 @@ export interface PositionRow {
   sharePct: number;
   gainPct: number | null;
   priceDate: string | null;
+  /** Warsaw day of the position's first activity; orders colour slots. */
+  firstDay: string;
 }
 
 export interface SeriesPoint {

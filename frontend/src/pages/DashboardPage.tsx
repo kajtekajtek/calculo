@@ -5,6 +5,7 @@ import AccountFilter from "../components/AccountFilter";
 import AllocationBar from "../components/AllocationBar";
 import Header from "../components/Header";
 import PositionList from "../components/PositionList";
+import { colorKeys } from "../palette";
 import ValueChart from "../components/ValueChart";
 import Warnings from "../components/Warnings";
 
@@ -13,9 +14,9 @@ export default function DashboardPage() {
   const [account, setAccount] = useState("all");
   const [view, setView] = useState<PortfolioView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Colour keys come from the unfiltered ("all") view: its eight largest positions get a hue,
-  // so a position keeps its colour when the account filter changes.
-  const [colorKeys, setColorKeys] = useState<string[]>([]);
+  // Colour order comes from the unfiltered ("all") view (by first activity day), so a position
+  // keeps its colour when the account filter changes or new positions are added.
+  const [colorOrder, setColorOrder] = useState<string[]>([]);
 
   useEffect(() => {
     api.get<Account[]>("/api/accounts").then(setAccounts, () => {});
@@ -29,7 +30,7 @@ export default function DashboardPage() {
         if (!current) return;
         setView(v);
         if (account === "all") {
-          setColorKeys([...v.positions].sort((x, y) => y.value - x.value).slice(0, 8).map((p) => p.key));
+          setColorOrder(colorKeys(v.positions));
         }
       },
       (e: Error) => { if (current) setError(e.message); },
@@ -54,7 +55,7 @@ export default function DashboardPage() {
           <div className="primary">
             <Header summary={view.summary} />
             <ValueChart series={view.series} />
-            <AllocationBar positions={view.positions} allKeys={colorKeys} />
+            <AllocationBar positions={view.positions} allKeys={colorOrder} />
           </div>
           <div className="secondary">
             <PositionList positions={view.positions} />

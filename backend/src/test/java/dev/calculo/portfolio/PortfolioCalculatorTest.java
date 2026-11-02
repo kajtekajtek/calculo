@@ -176,6 +176,28 @@ class PortfolioCalculatorTest {
     }
 
     @Test
+    void positionsCarryTheDayOfTheirFirstActivity() {
+        // Hand-checked: IKE deposits on 03-02 and first buys AAA.DE on 03-03 (2nd lot 03-10);
+        // Trades first deposits on 05-01 and buys AAA.DE again on 05-04; EDO bought 10-02.
+        List<OperationRow> ops = new ArrayList<>(basicOps());
+        ops.add(buy("xtb:IKE", "AAA.DE", "2026-03-10", "100", "p3", "1"));
+        ops.add(deposit("xtb:Trades", "2026-05-01", "500"));
+        ops.add(buy("xtb:Trades", "AAA.DE", "2026-05-04", "90", "t1", "1"));
+        Map<String, EdoSeries> series = Map.of("EDO1036", new EdoSeries("EDO1036", bd("5.60"), bd("2.00")));
+        PortfolioInputs in = withBonds(inputs(List.of(IKE, TRADES), ops),
+                List.of(new BondPurchase(1, "EDO1036", LocalDate.parse("2026-10-02"), 10)), series, Map.of());
+
+        PortfolioView all = PortfolioCalculator.view(in, "all");
+        assertThat(row(all, "AAA.DE").firstDay()).isEqualTo(LocalDate.parse("2026-03-03"));
+        assertThat(row(all, "cash").firstDay()).isEqualTo(LocalDate.parse("2026-03-02"));
+        assertThat(row(all, "edo").firstDay()).isEqualTo(LocalDate.parse("2026-10-02"));
+
+        PortfolioView trades = PortfolioCalculator.view(in, "xtb:Trades");
+        assertThat(row(trades, "AAA.DE").firstDay()).isEqualTo(LocalDate.parse("2026-05-04"));
+        assertThat(row(trades, "cash").firstDay()).isEqualTo(LocalDate.parse("2026-05-01"));
+    }
+
+    @Test
     void filtersSelectAccountOrBondsOnly() {
         List<OperationRow> ops = new ArrayList<>(basicOps());
         ops.add(deposit("xtb:Trades", "2026-05-01", "500"));

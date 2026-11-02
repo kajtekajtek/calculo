@@ -117,6 +117,7 @@ public final class PortfolioCalculator {
         BigDecimal value;
         BigDecimal cost; // null for cash
         LocalDate priceDate;
+        LocalDate firstDay;
 
         BigDecimal value() { return value; }
     }
@@ -261,6 +262,7 @@ public final class PortfolioCalculator {
                 d.key = e.getKey();
                 d.name = names.getOrDefault(e.getKey(), e.getKey());
                 d.kind = INSTRUMENT;
+                d.firstDay = e.getValue().stream().map(l -> l.day).min(LocalDate::compareTo).orElseThrow();
                 d.cost = cost;
                 d.value = price.map(p -> scale(qty.multiply(p.pln()))).orElse(cost);
                 d.priceDate = price.map(PricedAt::priceDate).orElse(null);
@@ -271,6 +273,7 @@ public final class PortfolioCalculator {
                 d.key = EDO_KEY;
                 d.name = "Obligacje EDO";
                 d.kind = "BONDS";
+                d.firstDay = bonds.get(0).purchase.purchaseDate(); // bonds are sorted by purchase date
                 d.value = BigDecimal.ZERO;
                 d.cost = BigDecimal.ZERO;
                 for (Bond b : bonds) {
@@ -285,6 +288,7 @@ public final class PortfolioCalculator {
                 d.key = CASH_KEY;
                 d.name = "Gotówka";
                 d.kind = "CASH";
+                d.firstDay = cash.get(0).day; // cash entries follow the day-sorted operations
                 d.value = cashTotal;
                 drafts.add(d);
             }
@@ -295,7 +299,7 @@ public final class PortfolioCalculator {
         List<PositionRow> rows(List<Draft> drafts, BigDecimal total) {
             return drafts.stream().map(d -> new PositionRow(d.key, d.name, d.kind, scale(d.value),
                     total.signum() > 0 ? d.value.multiply(BigDecimal.valueOf(100)).divide(total, 2, RoundingMode.HALF_UP) : null,
-                    d.cost == null ? null : pct(d.value.subtract(d.cost), d.cost), d.priceDate)).toList();
+                    d.cost == null ? null : pct(d.value.subtract(d.cost), d.cost), d.priceDate, d.firstDay)).toList();
         }
 
         List<SeriesPoint> series() {

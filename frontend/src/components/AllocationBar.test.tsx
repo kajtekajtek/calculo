@@ -1,24 +1,55 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { PositionRow } from "../api";
-import { colorFor } from "../palette";
+import { colorFor, colorKeys } from "../palette";
 import AllocationBar from "./AllocationBar";
 
-function row(key: string, value: number, name = `Poz ${key}`): PositionRow {
-  return { key, name, kind: "INSTRUMENT", value, sharePct: value, gainPct: null, priceDate: null };
+function row(key: string, value: number, name = `Poz ${key}`, firstDay = "2026-01-01"): PositionRow {
+  return { key, name, kind: "INSTRUMENT", value, sharePct: value, gainPct: null, priceDate: null, firstDay };
 }
 
-const all = ["AAA.DE", "BBB.PL", "cash", "edo"];
+const all = ["AAA.DE", "BBB.PL", "cash", "edo"]; // already in colour order
 
 describe("colorFor", () => {
-  it("depends on the key, not on the position in the list", () => {
-    expect(colorFor("BBB.PL", all)).toBe(colorFor("BBB.PL", [...all].reverse()));
-    expect(colorFor("AAA.DE", all)).not.toBe(colorFor("BBB.PL", all));
+  it("assigns slots in the order of the key list", () => {
+    expect(colorFor("AAA.DE", all)).toBe("var(--cat-1)");
+    expect(colorFor("edo", all)).toBe("var(--cat-4)");
   });
   it("gives neutral to keys past the eighth slot", () => {
     const keys = "ABCDEFGHIJ".split("").map((c) => `${c}.X`);
     expect(colorFor("J.X", keys)).toBe("var(--cat-other)");
     expect(colorFor("H.X", keys)).toBe("var(--cat-8)");
+    expect(colorFor("unknown", keys)).toBe("var(--cat-other)");
+  });
+});
+
+describe("colorKeys", () => {
+  const base = [row("BBB.PL", 10, "b", "2026-01-05"), row("cash", 5, "c", "2026-01-01"), row("AAA.DE", 7, "a", "2026-02-01")];
+
+  it("orders by first day, then key", () => {
+    expect(colorKeys(base)).toEqual(["cash", "BBB.PL", "AAA.DE"]);
+    expect(colorKeys([row("ZZZ", 1, "z", "2026-01-01"), row("CCC", 1, "c", "2026-01-01")])).toEqual(["CCC", "ZZZ"]);
+  });
+
+  it("leaves existing colours unchanged when a key with a later first day joins", () => {
+    const before = colorKeys(base);
+    const after = colorKeys([...base, row("AAB.PL", 99, "new", "2026-06-01")]);
+    for (const key of before) expect(colorFor(key, after)).toBe(colorFor(key, before));
+    expect(colorFor("AAB.PL", after)).toBe("var(--cat-4)");
+  });
+
+  it("does not let an alphabetically earlier but later-started key displace others", () => {
+    const keys = colorKeys([...base, row("AAA.AA", 1, "x", "2026-09-09")]);
+    expect(keys[keys.length - 1]).toBe("AAA.AA");
+    expect(colorFor("cash", keys)).toBe("var(--cat-1)");
+  });
+
+  it("keeps a colour when the position's value grows past others", () => {
+    const keys = colorKeys(base);
+    const grown = base.map((p) => (p.key === "cash" ? { ...p, value: 1000 } : p));
+    expect(colorKeys(grown)).toEqual(keys);
+    const { container } = render(<AllocationBar positions={grown} allKeys={colorKeys(grown)} />);
+    expect(container.querySelector<HTMLElement>('[data-key="cash"]')!.style.backgroundColor).toBe(colorFor("cash", keys));
   });
 });
 

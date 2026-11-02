@@ -23,9 +23,9 @@ function view(over: Partial<PortfolioView> = {}): PortfolioView {
       pricesAsOf: "2026-10-30",
     },
     positions: [
-      { key: "BBB.PL", name: "Fundusz BBB", kind: "INSTRUMENT", value: 7000, sharePct: 56.7, gainPct: -3.8, priceDate: "2026-10-30" },
-      { key: "AAA.DE", name: "Spółka AAA", kind: "INSTRUMENT", value: 5000, sharePct: 40.5, gainPct: 10, priceDate: "2026-10-30" },
-      { key: "cash", name: "Gotówka", kind: "CASH", value: 345.67, sharePct: 2.8, gainPct: null, priceDate: null },
+      { key: "BBB.PL", name: "Fundusz BBB", kind: "INSTRUMENT", value: 7000, sharePct: 56.7, gainPct: -3.8, priceDate: "2026-10-30", firstDay: "2026-03-03" },
+      { key: "AAA.DE", name: "Spółka AAA", kind: "INSTRUMENT", value: 5000, sharePct: 40.5, gainPct: 10, priceDate: "2026-10-30", firstDay: "2026-03-03" },
+      { key: "cash", name: "Gotówka", kind: "CASH", value: 345.67, sharePct: 2.8, gainPct: null, priceDate: null, firstDay: "2026-03-01" },
     ],
     series: [],
     warnings: [],

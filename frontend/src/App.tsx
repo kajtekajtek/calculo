@@ -3,6 +3,7 @@ import { Route, Routes } from "react-router-dom";
 import { api, onUnauthorized } from "./api";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
+import RatesPage from "./pages/RatesPage";
 import UpdatePage from "./pages/UpdatePage";
 
 type Session = "checking" | "anonymous" | "authenticated";
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/update" element={<UpdatePage />} />
+      <Route path="/rates" element={<RatesPage />} />
       <Route path="*" element={<DashboardPage />} />
     </Routes>
   );

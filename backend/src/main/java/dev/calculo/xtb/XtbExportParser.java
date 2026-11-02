@@ -173,8 +173,11 @@ public final class XtbExportParser {
             String product = text(cell(row, col, "product"));
             if (!product.isEmpty() && !products.contains(product)) products.add(product);
             if (time == null) {
-                // Footer rows (e.g. totals) have neither amount nor ID; anything else lost its time and must be reported.
-                if (text(cell(row, col, "amount")).isEmpty() && text(cell(row, col, "id")).isEmpty()) continue;
+                // Footer rows (e.g. "Total") have no ID and a footer label as type; anything else lost its time and must be reported.
+                String label = text(cell(row, col, "type"));
+                boolean footer = text(cell(row, col, "id")).isEmpty()
+                        && (label.isEmpty() || label.equalsIgnoreCase("Total") || label.equalsIgnoreCase("Profit/loss"));
+                if (footer) continue;
                 problems.add(new ImportProblem(file, "Cash Operations", rowNo,
                         "Brak czasu operacji lub czas jest nieczytelny."));
                 continue;

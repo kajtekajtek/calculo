@@ -106,7 +106,7 @@ class XtbExportParserTest {
     @Test
     void footerRowsWithoutTimeAreSkippedSilently() {
         byte[] file = ike().cash("Deposit", "", "", "", T, 1.0, 1L, "", "IKE", null)
-                .cashFooter("Total").build();
+                .cashFooter("Total", 123.45).build();
         ParsedExport p = parse("a.xlsx", file);
         assertThat(p.problems()).isEmpty();
         assertThat(p.accounts().get(0).operations()).hasSize(1);
@@ -119,6 +119,13 @@ class XtbExportParserTest {
         assertThat(p.problems()).hasSize(1);
         assertThat(p.problems().get(0).row()).isEqualTo(6);
         assertThat(p.accounts().get(0).operations()).isEmpty();
+    }
+
+    @Test
+    void timelessUnknownTypeWithoutIdIsAProblem() {
+        byte[] file = ike().cash("Withdrawal", "", "", "", null, -5.0, null, "", "IKE", null).build();
+        ParsedExport p = parse("a.xlsx", file);
+        assertThat(p.problems()).hasSize(1);
     }
 
     @Test

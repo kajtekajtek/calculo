@@ -56,8 +56,9 @@ public final class XtbFixture {
         return this;
     }
 
-    public XtbFixture cashFooter(String label) {
-        cashRows.add(new Object[]{label});
+    /** A footer row as in real exports: label in Type, a summed Amount, no Time and no ID. */
+    public XtbFixture cashFooter(String label, double amount) {
+        cashRows.add(new Object[]{label, null, null, null, null, amount});
         return this;
     }
 

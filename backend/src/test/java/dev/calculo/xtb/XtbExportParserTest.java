@@ -231,6 +231,25 @@ class XtbExportParserTest {
     }
 
     @Test
+    void moreThanOneProductInAWorkbookIsAProblem() {
+        byte[] file = ike().cash("Deposit", "", "", "", T, 1.0, 1L, "", "IKE", null)
+                .cash("Deposit", "", "", "", T, 2.0, 2L, "", "My Trades", null).build();
+        ParsedExport p = parse("a.xlsx", file);
+        assertThat(p.problems()).hasSize(1);
+        assertThat(p.problems().get(0).sheet()).isEqualTo("Cash Operations");
+        assertThat(p.problems().get(0).message()).contains("IKE").contains("My Trades");
+    }
+
+    @Test
+    void anotherProductOnlyInOpenPositionsIsAProblem() {
+        byte[] file = ike().cash("Deposit", "", "", "", T, 1.0, 1L, "", "IKE", null)
+                .openAggregate("My Trades", "Alpha ETF", "AAA.DE", "ETF", 1, 100).build();
+        ParsedExport p = parse("a.xlsx", file);
+        assertThat(p.problems()).hasSize(1);
+        assertThat(p.problems().get(0).sheet()).isEqualTo("Open Positions");
+    }
+
+    @Test
     void unreadablePurchaseCommentIsAProblem() {
         byte[] file = ike().cash("Stock purchase", "Alpha", "AAA.DE", "ETF", T, -1.0, 1L, "garbled", "IKE", 1L).build();
         ParsedExport p = parse("a.xlsx", file);

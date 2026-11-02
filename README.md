@@ -22,7 +22,8 @@ Zmienne w pliku `.env`:
 | --- | --- |
 | `POSTGRES_PASSWORD` | hasło bazy danych (baza nie jest wystawiona na zewnątrz) |
 | `CALCULO_PASSWORD` | hasło do logowania w aplikacji |
-| `CALCULO_BOND_ACCOUNT_NAME` | nazwa konta z obligacjami wyświetlana w aplikacji (domyślnie `Obligacje`) |
+| `CALCULO_BOND_ACCOUNT_NAME` | nazwa konta z obligacjami wyświetlana w aplikacji (domyślnie `Obligacje`). Liczy się tylko przy zakładaniu tego konta: późniejsza zmiana nie wpływa na konto, które już istnieje |
+| `CALCULO_SUFFIX_MAP` | zamiana przyrostków tickerów XTB na przyrostki dostawcy notowań, w formie `PRZYROSTEK=ZAMIANA` rozdzielone przecinkami (domyślnie `PL=WA`, czyli `AAA.PL` to `AAA.WA`). Pusta zamiana usuwa przyrostek: `PL=WA,US=` zamienia też `XXX.US` na `XXX`. Wartość zastępuje całą domyślną mapę, więc zostaw w niej `PL=WA` |
 
 Brak którejś z wymaganych zmiennych kończy się czytelnym komunikatem przy starcie. Dane bazy leżą w wolumenie Dockera `calculo-db`, więc przeżywają restart i aktualizację obrazu. Kontenery startują same po restarcie komputera, dopóki ich nie zatrzymasz (`docker compose stop`).
 
@@ -34,7 +35,7 @@ Tryb demo wypełnia aplikację fikcyjnym portfelem (instrumenty `AAA.DE`, `BBB.P
 docker compose -f compose.yaml -f compose.demo.yaml up --build
 ```
 
-Demo ma własny wolumen bazy (`calculo-demo-db`), więc nie miesza się z Twoimi danymi. Dane startowe są dodawane tylko do pustej bazy, więc ponowne uruchomienie niczego nie dubluje. Usunięcie demo: `docker compose -f compose.yaml -f compose.demo.yaml down -v`.
+Demo ma własny wolumen bazy (`calculo-demo-db`), więc nie miesza się z Twoimi danymi. Dane startowe są dodawane tylko do pustej bazy, więc ponowne uruchomienie niczego nie dubluje. Fikcyjne ceny nie mogą trafić do prawdziwych danych, więc tryb demo nie wystartuje na bazie z innymi kontami niż demo (również gdy wgrasz w nim prawdziwy eksport). Usunięcie demo: `docker compose -f compose.yaml -f compose.demo.yaml down -v`.
 
 ## Dostęp z telefonu
 
@@ -53,6 +54,10 @@ Plik można wczytać ponownie: powtórzone operacje są rozpoznawane i pomijane.
 ## Obligacje EDO i inflacja
 
 Zakupy obligacji EDO dodajesz ręcznie w „Aktualizuj dane” (data i liczba sztuk). Oprocentowanie pierwszego roku i marża serii są pobierane automatycznie lub wpisywane ręcznie na ekranie „Stopy i inflacja”. Od drugiego roku odsetki zależą od inflacji: gdy GUS ogłasza nowy odczyt, dopisz go na ekranie „Stopy i inflacja” (miesiąc ogłoszenia i wartość w procentach). Aplikacja pokazuje, których miesięcy jeszcze brakuje.
+
+## Notowania
+
+Notowania i kursy odświeżają się przy starcie aplikacji, po każdym imporcie, codziennie o 18:30 i po kliknięciu „Odśwież notowania” na ekranie głównym. Gdy serwis notowań odpowie, że zapytań jest za dużo (HTTP 429), aplikacja przerywa odświeżanie i nie pyta go ponownie przed czasem, który wskazał, a gdy go nie wskazał, przez godzinę. Ekran główny pokazuje wtedy ten czas. Po restarcie aplikacji ta przerwa jest liczona od nowa przy pierwszej odmowie.
 
 ## Ograniczenia
 

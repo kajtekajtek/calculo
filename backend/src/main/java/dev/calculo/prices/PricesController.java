@@ -1,6 +1,7 @@
 package dev.calculo.prices;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,7 +15,12 @@ public class PricesController {
         this.sync = sync;
     }
 
-    /** Starts a sync in the background and returns at once. */
+    @GetMapping("/status")
+    public PriceSyncState status() {
+        return sync.state();
+    }
+
+    /** Starts a sync in the background and returns at once; does nothing during a rate-limit cooldown. */
     @PostMapping("/refresh")
     public ResponseEntity<Void> refresh() {
         sync.syncAsync();

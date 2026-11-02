@@ -37,5 +37,5 @@ calculo:
     sync-on-startup: true
     sync-on-import: true
     schedule-enabled: true
-    suffix-map:
-      PL: WA
+    # Ticker suffix to provider suffix, e.g. "PL=WA,US=" (an empty replacement drops the suffix).
+    suffix-map: ${CALCULO_SUFFIX_MAP:PL=WA}

@@ -8,7 +8,12 @@ import org.springframework.web.client.RestClient;
 final class HttpSupport {
     static final Duration TIMEOUT = Duration.ofSeconds(10);
 
-    record Response(int status, String body) {}
+    /** {@code retryAfter} is the raw Retry-After header, null when the caller does not read it or it is absent. */
+    record Response(int status, String body, String retryAfter) {
+        Response(int status, String body) {
+            this(status, body, null);
+        }
+    }
 
     private HttpSupport() {}
 

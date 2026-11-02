@@ -24,8 +24,16 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       CALCULO_PASSWORD: ${CALCULO_PASSWORD:?set CALCULO_PASSWORD in .env}
       CALCULO_BOND_ACCOUNT_NAME: ${CALCULO_BOND_ACCOUNT_NAME:-Obligacje}
+      CALCULO_SUFFIX_MAP: ${CALCULO_SUFFIX_MAP:-PL=WA}
     ports:
       - "8080:8080"
+    healthcheck:
+      # The JRE image has no guaranteed HTTP client, but it has bash.
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /actuator/health HTTP/1.0\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
 volumes:

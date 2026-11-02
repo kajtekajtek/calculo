@@ -12,6 +12,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -37,18 +38,18 @@ public class PortfolioService {
         return accounts.all();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public PortfolioView view(String accountFilter) {
         return PortfolioCalculator.view(inputs(), accountFilter);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public PositionDetail detail(String key, String accountFilter) {
         return PortfolioCalculator.detail(inputs(), accountFilter, key);
     }
 
     private PortfolioInputs inputs() {
-        // One transaction keeps the reads consistent with each other.
+        // One REPEATABLE_READ transaction (see the callers) gives all these reads the same snapshot.
         LocalDate today = LocalDate.now(clock.withZone(ClockConfig.WARSAW));
         return new PortfolioInputs(accounts.all(), ledger.allOperations(), bonds.allPurchases(), bonds.allSeries(),
                 bonds.cpi(), marketData.load(), ledger.snapshots(), ledger.instruments(), priceSync.syncStatus(),

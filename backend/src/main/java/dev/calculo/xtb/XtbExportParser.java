@@ -170,8 +170,7 @@ public final class XtbExportParser {
             if (row == null) continue;
             Double time = number(cell(row, col, "time"));
             int rowNo = r + 1;
-            String product = text(cell(row, col, "product"));
-            if (!product.isEmpty() && !products.contains(product)) products.add(product);
+            noteProduct(file, "Cash Operations", rowNo, text(cell(row, col, "product")), products, problems);
             if (time == null) {
                 // Footer rows (e.g. "Total") have no ID and a footer label as type; anything else lost its time and must be reported.
                 String label = text(cell(row, col, "type"));
@@ -252,8 +251,7 @@ public final class XtbExportParser {
         for (int r = header.getRowNum() + 1; r <= sheet.getLastRowNum(); r++) {
             Row row = sheet.getRow(r);
             if (row == null) continue;
-            String product = text(cell(row, col, "product"));
-            if (!product.isEmpty() && !products.contains(product)) products.add(product);
+            noteProduct(file, "Open Positions", r + 1, text(cell(row, col, "product")), products, problems);
             boolean aggregate = !text(cell(row, col, "category")).isEmpty() && text(cell(row, col, "type")).isEmpty();
             if (!aggregate) continue; // individual BUY rows are covered by the aggregate row
             String ticker = text(cell(row, col, "ticker"));
@@ -285,6 +283,17 @@ public final class XtbExportParser {
     }
 
     // ---- helpers ----
+
+    /** A workbook belongs to one account, so a second product would put its rows on the wrong one. */
+    private static void noteProduct(String file, String sheet, int rowNo, String product, List<String> products,
+                                    List<ImportProblem> problems) {
+        if (product.isEmpty() || products.contains(product)) return;
+        if (!products.isEmpty()) {
+            problems.add(new ImportProblem(file, sheet, rowNo, "Plik zawiera więcej niż jeden produkt (konto): \""
+                    + products.get(0) + "\" i \"" + product + "\"."));
+        }
+        products.add(product);
+    }
 
     private static Row findHeader(Sheet sheet, String... required) {
         int last = Math.min(sheet.getLastRowNum(), HEADER_SEARCH_ROWS);

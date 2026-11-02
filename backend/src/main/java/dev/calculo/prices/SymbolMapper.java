@@ -13,12 +13,13 @@ public class SymbolMapper {
         this.suffixes = normalized;
     }
 
-    /** An explicit price symbol wins; otherwise a mapped ticker suffix is replaced (AAA.PL to AAA.WA). */
+    /** An explicit price symbol wins; otherwise a mapped ticker suffix is replaced (AAA.PL to AAA.WA) or, when the replacement is empty, dropped (AAA.US to AAA). */
     public String symbol(String ticker, String priceSymbol) {
         if (priceSymbol != null && !priceSymbol.isBlank()) return priceSymbol.trim();
         int dot = ticker.lastIndexOf('.');
         if (dot < 0) return ticker;
         String replacement = suffixes.get(ticker.substring(dot + 1).toUpperCase(Locale.ROOT));
-        return replacement == null ? ticker : ticker.substring(0, dot + 1) + replacement;
+        if (replacement == null) return ticker;
+        return replacement.isEmpty() ? ticker.substring(0, dot) : ticker.substring(0, dot + 1) + replacement;
     }
 }

@@ -1,5 +1,7 @@
 package dev.calculo.prices;
 
+import java.time.Clock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,13 +15,13 @@ public class PricesConfig {
 
     @Bean
     SymbolMapper symbolMapper(PricesProperties props) {
-        return new SymbolMapper(props.suffixMap());
+        return new SymbolMapper(props.suffixes());
     }
 
     @Bean
     @Profile("!demo")
-    PriceProvider yahooPriceProvider(PricesProperties props) {
-        return new YahooPriceProvider(props.yahooBaseUrl());
+    PriceProvider yahooPriceProvider(PricesProperties props, ObjectProvider<Clock> clock) {
+        return new YahooPriceProvider(props.yahooBaseUrl(), clock.getIfAvailable(Clock::systemUTC));
     }
 
     @Bean

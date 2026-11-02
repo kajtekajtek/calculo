@@ -8,6 +8,8 @@ import dev.calculo.xtb.LedgerRepository.OperationRow;
 import jakarta.annotation.PreDestroy;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -30,6 +33,8 @@ public class PriceSyncService {
     private static final String PLN = "PLN";
     /** NBP publishes no rate on weekends and holidays, so start a bit earlier to have one for the first price day. */
     private static final int FX_LOOKBACK_DAYS = 7;
+    /** How long to leave a provider alone after a 429 that does not say. */
+    private static final Duration DEFAULT_COOLDOWN = Duration.ofHours(1);
 
     private final LedgerRepository ledger;
     private final MarketDataRepository repository;
@@ -45,6 +50,10 @@ public class PriceSyncService {
         return t;
     });
     private final AtomicBoolean queued = new AtomicBoolean();
+    /** Runs queued or in progress, so a status request right after a trigger already sees one. */
+    private final AtomicInteger inFlight = new AtomicInteger();
+    /** Kept in memory: after a restart the first request finds out again whether the limit still applies. */
+    private volatile Instant notBefore;
 
     public PriceSyncService(LedgerRepository ledger, MarketDataRepository repository, PriceProvider prices,
                             FxProvider fx, SymbolMapper symbols, PricesProperties props, Clock clock) {
@@ -62,15 +71,31 @@ public class PriceSyncService {
         return new TreeMap<>(status);
     }
 
-    /** Runs a sync on the background thread; a run already waiting in the queue covers this request. */
+    public PriceSyncState state() {
+        return new PriceSyncState(inFlight.get() > 0, activeCooldown());
+    }
+
+    private Instant activeCooldown() {
+        Instant until = notBefore;
+        return until != null && clock.instant().isBefore(until) ? until : null;
+    }
+
+    /**
+     * Runs a sync on the background thread; a run already waiting in the queue covers this request.
+     * Does nothing during a rate-limit cooldown.
+     */
     public void syncAsync() {
+        if (activeCooldown() != null) return;
         if (!queued.compareAndSet(false, true)) return;
+        inFlight.incrementAndGet();
         executor.execute(() -> {
             queued.set(false);
             try {
                 sync();
             } catch (RuntimeException e) {
                 log.warn("Price sync failed", e);
+            } finally {
+                inFlight.decrementAndGet();
             }
         });
     }
@@ -95,8 +120,25 @@ public class PriceSyncService {
         executor.shutdownNow();
     }
 
-    /** Fetches what is missing for every instrument and currency. Never throws for provider problems. */
+    /**
+     * Fetches what is missing for every instrument and currency. Never throws for provider problems.
+     * A rate limit ends the run and starts a cooldown during which this does nothing.
+     */
     public synchronized void sync() {
+        if (activeCooldown() != null) return;
+        inFlight.incrementAndGet();
+        try {
+            syncEverything();
+        } catch (RateLimitedException e) {
+            Duration wait = e.retryAfter() == null ? DEFAULT_COOLDOWN : e.retryAfter();
+            notBefore = clock.instant().plus(wait);
+            log.warn("Price sync stopped until {}: {}", notBefore, e.getMessage());
+        } finally {
+            inFlight.decrementAndGet();
+        }
+    }
+
+    private void syncEverything() throws RateLimitedException {
         LocalDate today = LocalDate.now(clock.withZone(ClockConfig.WARSAW));
         Map<String, LocalDate> firstDays = firstOperationDays();
         Map<String, String> currencies = new HashMap<>();
@@ -111,10 +153,11 @@ public class PriceSyncService {
             if (!PLN.equalsIgnoreCase(currency)) fxStart.merge(currency, firstDays.get(ticker),
                     (a, b) -> a.isBefore(b) ? a : b);
         });
-        fxStart.forEach((currency, firstDay) -> syncFx(currency, firstDay, today));
+        for (Map.Entry<String, LocalDate> e : fxStart.entrySet()) syncFx(e.getKey(), e.getValue(), today);
     }
 
-    private java.util.Optional<String> syncTicker(InstrumentRow instrument, LocalDate firstDay, LocalDate today) {
+    private java.util.Optional<String> syncTicker(InstrumentRow instrument, LocalDate firstDay, LocalDate today)
+            throws RateLimitedException {
         String ticker = instrument.ticker();
         try {
             // All-or-nothing: every range is fetched before anything is stored, so a failure leaves no gap.
@@ -132,6 +175,9 @@ public class PriceSyncService {
             repository.savePrices(ticker, currency, fetched);
             status.remove(ticker);
             return java.util.Optional.of(currency);
+        } catch (RateLimitedException e) {
+            status.put(ticker, String.valueOf(e.getMessage()));
+            throw e;
         } catch (PriceUnavailableException | RuntimeException e) {
             log.warn("Price sync failed for {}: {}", ticker, e.getMessage());
             status.put(ticker, String.valueOf(e.getMessage()));
@@ -139,7 +185,7 @@ public class PriceSyncService {
         }
     }
 
-    private void syncFx(String currency, LocalDate firstDay, LocalDate today) {
+    private void syncFx(String currency, LocalDate firstDay, LocalDate today) throws RateLimitedException {
         String key = "FX:" + currency;
         try {
             Map<LocalDate, BigDecimal> fetched = new TreeMap<>();
@@ -149,6 +195,9 @@ public class PriceSyncService {
             }
             repository.saveFx(currency, fetched);
             status.remove(key);
+        } catch (RateLimitedException e) {
+            status.put(key, String.valueOf(e.getMessage()));
+            throw e;
         } catch (PriceUnavailableException | RuntimeException e) {
             log.warn("FX sync failed for {}: {}", currency, e.getMessage());
             status.put(key, String.valueOf(e.getMessage()));

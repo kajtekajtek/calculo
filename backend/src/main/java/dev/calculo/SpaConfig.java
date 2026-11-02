@@ -18,7 +18,7 @@ public class SpaConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/**")
                 .addResourceLocations("classpath:/static/")
-                .resourceChain(true)
+                .resourceChain(false)
                 .addResolver(new SpaResolver());
     }
 

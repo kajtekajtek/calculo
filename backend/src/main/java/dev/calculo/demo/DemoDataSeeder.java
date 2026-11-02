@@ -14,6 +14,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -23,7 +25,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Fills an empty database with a fictional portfolio, relative to today, and loads fictional prices.
- * Idempotent: it seeds only when there are no accounts at all, so it never touches real data.
+ * Idempotent: it seeds only when there are no accounts at all. Startup fails on a database holding anything else:
+ * every price trigger uses the fake providers here, and their prices must never reach real data.
  */
 @Component
 @Profile("demo")
@@ -31,6 +34,7 @@ class DemoDataSeeder implements ApplicationRunner {
     static final String IKE = "demo:IKE";
     static final String TRADES = "demo:Trades";
     private static final String BONDS = "bonds";
+    private static final Set<String> DEMO_ACCOUNTS = Set.of(IKE, TRADES, BONDS);
     private static final int HISTORY_DAYS = 300;
 
     private final AccountRepository accounts;
@@ -56,9 +60,22 @@ class DemoDataSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (accounts.all().isEmpty()) tx.executeWithoutResult(status -> seed());
-        // Fake providers only fill the demo data: never run against a database that holds something else.
-        if (accounts.all().stream().anyMatch(a -> IKE.equals(a.id()))) priceSync.sync();
+        List<Account> existing = accounts.all();
+        if (existing.isEmpty()) {
+            tx.executeWithoutResult(status -> seed());
+        } else {
+            requireDemoData(existing);
+        }
+        priceSync.sync();
+    }
+
+    /** The bonds account also exists in real data, so it only counts next to the demo IKE account. */
+    private static void requireDemoData(List<Account> existing) {
+        List<String> ids = existing.stream().map(Account::id).toList();
+        if (!ids.contains(IKE) || !DEMO_ACCOUNTS.containsAll(ids)) {
+            throw new IllegalStateException("The demo profile needs an empty database or its own demo data, but found "
+                    + "accounts " + ids + ". Use the separate demo volume, see README.");
+        }
     }
 
     private void seed() {

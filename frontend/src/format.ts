@@ -41,3 +41,10 @@ export function formatDay(iso: string): string {
 export function formatMonth(iso: string): string {
   return monthFormat.format(new Date(`${iso}T00:00:00Z`));
 }
+
+const decimalNumber = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 6 });
+
+/** Plain decimal without a unit (volumes, instrument prices), e.g. "100,5". */
+export function formatDecimal(value: number): string {
+  return decimalNumber.format(value).replace(/[\s ]/g, NBSP);
+}

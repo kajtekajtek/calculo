@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Account, PortfolioView, api } from "../api";
 import AccountFilter from "../components/AccountFilter";
 import AllocationBar from "../components/AllocationBar";
@@ -11,7 +11,9 @@ import Warnings from "../components/Warnings";
 
 export default function DashboardPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [account, setAccount] = useState("all");
+  const [params, setParams] = useSearchParams();
+  const account = params.get("account") || "all";
+  const setAccount = (id: string) => setParams({ account: id });
   const [view, setView] = useState<PortfolioView | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Colour order comes from the unfiltered ("all") view (by first activity day), so a position
@@ -58,7 +60,7 @@ export default function DashboardPage() {
             <AllocationBar positions={view.positions} allKeys={colorOrder} />
           </div>
           <div className="secondary">
-            <PositionList positions={view.positions} />
+            <PositionList positions={view.positions} account={account} />
             <Link className="button" to="/update">Aktualizuj dane</Link>
           </div>
         </div>

@@ -42,9 +42,10 @@ interface TooltipProps {
   active?: boolean;
   payload?: { payload: SeriesPoint }[];
   view: View;
+  costLabel: string;
 }
 
-function ChartTooltip({ active, payload, view }: TooltipProps) {
+function ChartTooltip({ active, payload, view, costLabel }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
@@ -53,7 +54,7 @@ function ChartTooltip({ active, payload, view }: TooltipProps) {
       {view === "value" ? (
         <>
           <div><i className="swatch swatch-line" style={{ backgroundColor: "var(--cat-1)" }} aria-hidden="true" />Wartość {formatPln(p.value)}</div>
-          <div><i className="swatch swatch-line" style={{ backgroundColor: "var(--cat-other)" }} aria-hidden="true" />Wpłaty {formatPln(p.contributions)}</div>
+          <div><i className="swatch swatch-line" style={{ backgroundColor: "var(--cat-other)" }} aria-hidden="true" />{costLabel} {formatPln(p.contributions)}</div>
         </>
       ) : (
         <div><i className="swatch swatch-line" style={{ backgroundColor: "var(--cat-1)" }} aria-hidden="true" />Wynik od początku {formatPct(p.cumulativeReturn)}</div>
@@ -64,9 +65,17 @@ function ChartTooltip({ active, payload, view }: TooltipProps) {
 
 const axisTick = { fill: "var(--muted)", fontSize: 12 };
 
+interface Props {
+  series: SeriesPoint[];
+  /** Hides the value/return switch and always shows value; for series without a weighted return. */
+  hideReturnToggle?: boolean;
+  /** Name of the second line (the series' contributions); "Wpłaty" for the portfolio, "Koszt" for a position. */
+  costLabel?: string;
+}
+
 /** Portfolio value (with contributions) or weighted return over time, on a single axis. */
-export default function ValueChart({ series }: { series: SeriesPoint[] }) {
-  const [view, setView] = useState<View>(() => readStored(VIEW_KEY, ["value", "return"] as const, "value"));
+export default function ValueChart({ series, hideReturnToggle = false, costLabel = "Wpłaty" }: Props) {
+  const [storedView, setView] = useState<View>(() => readStored(VIEW_KEY, ["value", "return"] as const, "value"));
   const [range, setRange] = useState<Range>(() => readStored(RANGE_KEY, RANGES, "Całość"));
   const data = useMemo(() => inRange(series, range), [series, range]);
   if (series.length === 0) return null;
@@ -74,19 +83,22 @@ export default function ValueChart({ series }: { series: SeriesPoint[] }) {
   const single = data.length === 1;
   const dot = single ? { r: 4, strokeWidth: 2, stroke: "var(--surface)" } : false;
   const activeDot = { r: 4, strokeWidth: 2, stroke: "var(--surface)" };
+  const view: View = hideReturnToggle ? "value" : storedView;
   const isValue = view === "value";
 
   return (
     <section className="chart" aria-label="Wykres portfela">
       <div className="chart-controls">
-        <div className="segmented" role="group" aria-label="Widok wykresu">
-          {VIEWS.map((v) => (
-            <button key={v.id} type="button" aria-pressed={view === v.id}
-              onClick={() => { setView(v.id); store(VIEW_KEY, v.id); }}>
-              {v.label}
-            </button>
-          ))}
-        </div>
+        {!hideReturnToggle && (
+          <div className="segmented" role="group" aria-label="Widok wykresu">
+            {VIEWS.map((v) => (
+              <button key={v.id} type="button" aria-pressed={view === v.id}
+                onClick={() => { setView(v.id); store(VIEW_KEY, v.id); }}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="segmented" role="group" aria-label="Zakres">
           {RANGES.map((r) => (
             <button key={r} type="button" aria-pressed={range === r}
@@ -99,7 +111,7 @@ export default function ValueChart({ series }: { series: SeriesPoint[] }) {
       {isValue ? (
         <div className="chart-legend" data-testid="chart-legend">
           <span className="legend-item"><i className="swatch swatch-line" style={{ backgroundColor: "var(--cat-1)" }} aria-hidden="true" />Wartość</span>
-          <span className="legend-item"><i className="swatch swatch-line" style={{ backgroundColor: "var(--cat-other)" }} aria-hidden="true" />Wpłaty</span>
+          <span className="legend-item"><i className="swatch swatch-line" style={{ backgroundColor: "var(--cat-other)" }} aria-hidden="true" />{costLabel}</span>
         </div>
       ) : (
         <p className="label">wynik od początku</p>
@@ -113,7 +125,7 @@ export default function ValueChart({ series }: { series: SeriesPoint[] }) {
             <YAxis tick={axisTick} stroke="var(--viz-axis)" axisLine={false} tickLine={false}
               width={isValue ? 76 : 56} domain={["auto", "auto"]}
               tickFormatter={(n: number) => (isValue ? formatPln(n) : formatPct(n))} />
-            <Tooltip content={<ChartTooltip view={view} />} cursor={{ stroke: "var(--viz-axis)" }} isAnimationActive={false} />
+            <Tooltip content={<ChartTooltip view={view} costLabel={costLabel} />} cursor={{ stroke: "var(--viz-axis)" }} isAnimationActive={false} />
             {isValue ? (
               <>
                 <Line type="monotone" dataKey="contributions" stroke="var(--cat-other)" strokeWidth={2}

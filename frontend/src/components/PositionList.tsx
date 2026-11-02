@@ -1,12 +1,19 @@
+import { Link } from "react-router-dom";
 import { PositionRow } from "../api";
 import { formatPct, formatPln, formatShare } from "../format";
 
-export default function PositionList({ positions }: { positions: PositionRow[] }) {
+export default function PositionList({ positions, account }: { positions: PositionRow[]; account: string }) {
   return (
     <ul className="positions" aria-label="Pozycje">
       {positions.map((p) => (
         <li key={p.key}>
-          <span className="name">{p.name}</span>
+          {p.kind === "CASH" ? (
+            <span className="name">{p.name}</span>
+          ) : (
+            <Link className="name" to={`/positions/${encodeURIComponent(p.key)}?account=${encodeURIComponent(account)}`}>
+              {p.name}
+            </Link>
+          )}
           <span className="value">{formatPln(p.value)}</span>
           <span className="share">{formatShare(p.sharePct)}</span>
           {p.gainPct !== null && (

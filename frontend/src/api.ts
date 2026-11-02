@@ -111,3 +111,17 @@ export interface EdoSeries { code: string; firstYearRate: number; margin: number
 export interface CpiEntry { month: string; pct: number }
 
 export interface RatesResponse { series: EdoSeries[]; cpi: CpiEntry[]; missingCpi: string[] }
+
+/** price is in the instrument's own currency (no currency given), null when unknown. */
+export interface PurchaseRow {
+  day: string;
+  accountName: string;
+  label: string;
+  volume: number;
+  price: number | null;
+  amountPln: number;
+  valueNow: number;
+}
+
+/** series holds the position's value and cost (in contributions) per day. */
+export interface PositionDetail { row: PositionRow; purchases: PurchaseRow[]; series: SeriesPoint[] }

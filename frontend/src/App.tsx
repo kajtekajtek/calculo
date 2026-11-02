@@ -3,6 +3,7 @@ import { Route, Routes } from "react-router-dom";
 import { api, onUnauthorized } from "./api";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
+import PositionPage from "./pages/PositionPage";
 import RatesPage from "./pages/RatesPage";
 import UpdatePage from "./pages/UpdatePage";
 
@@ -26,6 +27,7 @@ export default function App() {
     <Routes>
       <Route path="/update" element={<UpdatePage />} />
       <Route path="/rates" element={<RatesPage />} />
+      <Route path="/positions/:key" element={<PositionPage />} />
       <Route path="*" element={<DashboardPage />} />
     </Routes>
   );

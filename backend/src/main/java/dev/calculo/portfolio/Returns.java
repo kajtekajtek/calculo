@@ -19,7 +19,8 @@ public final class Returns {
     private Returns() {}
 
     /** Annualized rate r such that deposits compounded to asOf equal value. */
-    public static OptionalDouble xirr(List<Flow> flows, LocalDate asOf, double value) {
+    public static OptionalDouble xirr(List<Flow> allFlows, LocalDate asOf, double value) {
+        List<Flow> flows = upTo(allFlows, asOf);
         if (flows.isEmpty() || !(value > 0)) {
             return OptionalDouble.empty();
         }
@@ -54,7 +55,8 @@ public final class Returns {
     }
 
     /** Total return over the whole history, derived from the XIRR. */
-    public static OptionalDouble cumulative(List<Flow> flows, LocalDate asOf, double value) {
+    public static OptionalDouble cumulative(List<Flow> allFlows, LocalDate asOf, double value) {
+        List<Flow> flows = upTo(allFlows, asOf);
         OptionalDouble rate = xirr(flows, asOf, value);
         if (rate.isEmpty()) {
             return OptionalDouble.empty();
@@ -64,12 +66,18 @@ public final class Returns {
     }
 
     /** Annualized when history spans at least 365 days, otherwise cumulative. */
-    public static Optional<Headline> headline(List<Flow> flows, LocalDate asOf, double value) {
+    public static Optional<Headline> headline(List<Flow> allFlows, LocalDate asOf, double value) {
+        List<Flow> flows = upTo(allFlows, asOf);
         boolean annualized = !flows.isEmpty() && historyDays(flows, asOf) >= 365;
         OptionalDouble result = annualized ? xirr(flows, asOf, value) : cumulative(flows, asOf, value);
         return result.isPresent()
                 ? Optional.of(new Headline(result.getAsDouble(), annualized))
                 : Optional.empty();
+    }
+
+    /** Flows made on or before asOf; later deposits are not yet part of the portfolio. */
+    private static List<Flow> upTo(List<Flow> flows, LocalDate asOf) {
+        return flows.stream().filter(f -> !f.date().isAfter(asOf)).toList();
     }
 
     private static long historyDays(List<Flow> flows, LocalDate asOf) {

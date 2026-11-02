@@ -51,4 +51,17 @@ class ReturnsTest {
         var r = Returns.cumulative(flows, d("2025-01-01").plusDays(182), 1050);
         assertEquals(0.05, r.getAsDouble(), 1e-6);
     }
+
+    @Test
+    void flowsAfterAsOfAreIgnored() {
+        LocalDate asOf = d("2025-06-01");
+        var single = Returns.xirr(List.of(flow("2025-01-01", 1000)), asOf, 1040);
+        var both = Returns.xirr(List.of(flow("2025-01-01", 1000), flow("2025-07-01", 500)), asOf, 1040);
+        assertEquals(single.getAsDouble(), both.getAsDouble(), 1e-9);
+    }
+
+    @Test
+    void headlineEmptyWhenOnlyFlowIsAfterAsOf() {
+        assertTrue(Returns.headline(List.of(flow("2025-07-01", 500)), d("2025-06-01"), 500).isEmpty());
+    }
 }

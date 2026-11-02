@@ -88,6 +88,7 @@ class PriceSyncIT extends PostgresTestBase {
 
     @BeforeEach
     void seed() {
+        dev.calculo.TestAuth.login(rest);
         PRICE_CALLS.clear();
         FX_CALLS.clear();
         FAILING.clear();

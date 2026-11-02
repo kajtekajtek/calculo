@@ -11,12 +11,23 @@ spring:
       max-request-size: 20MB
   jackson:
     time-zone: Europe/Warsaw
+server:
+  servlet:
+    session:
+      timeout: 30d
+      cookie:
+        http-only: true
+        same-site: lax
+        max-age: 30d
 management:
   endpoints:
     web:
       exposure:
         include: health
 calculo:
+  auth:
+    # Required: startup fails when blank (see AuthProperties).
+    password: ${CALCULO_PASSWORD:}
   bond-account-name: ${CALCULO_BOND_ACCOUNT_NAME:Obligacje}
   prices:
     sync-on-startup: true

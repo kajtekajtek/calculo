@@ -48,6 +48,7 @@ class BondApiIT extends PostgresTestBase {
 
     @BeforeEach
     void clean() {
+        dev.calculo.TestAuth.login(rest);
         SOURCE.clear();
         jdbc.update("delete from bond_purchase");
         jdbc.update("delete from edo_series");

@@ -46,6 +46,7 @@ class PortfolioApiIT extends PostgresTestBase {
 
     @BeforeEach
     void clean() {
+        dev.calculo.TestAuth.login(rest);
         jdbc.update("delete from bond_purchase");
         jdbc.update("delete from edo_series");
         jdbc.update("delete from cpi_announcement");

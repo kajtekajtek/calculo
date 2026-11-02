@@ -32,6 +32,7 @@ class XtbImportIT extends PostgresTestBase {
 
     @BeforeEach
     void clean() {
+        dev.calculo.TestAuth.login(rest);
         jdbc.update("delete from operation");
         jdbc.update("delete from position_snapshot");
         jdbc.update("delete from instrument");

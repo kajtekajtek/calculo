@@ -28,3 +28,16 @@ export function formatPct(value: number | null | undefined): string {
 export function formatShare(value: number): string {
   return `${pctNumber.format(value)}%`;
 }
+
+const dateFormat = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const monthFormat = new Intl.DateTimeFormat("pl-PL", { month: "short", year: "2-digit", timeZone: "UTC" });
+
+/** ISO day (yyyy-mm-dd) as a Polish date, e.g. "2 lis 2026". */
+export function formatDay(iso: string): string {
+  return dateFormat.format(new Date(`${iso}T00:00:00Z`));
+}
+
+/** ISO day as a short month label for axis ticks, e.g. "lis 26". */
+export function formatMonth(iso: string): string {
+  return monthFormat.format(new Date(`${iso}T00:00:00Z`));
+}

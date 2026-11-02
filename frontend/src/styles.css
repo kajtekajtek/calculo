@@ -44,6 +44,7 @@ button, .button {
 }
 button[aria-pressed="true"], button[type="submit"], .button { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 button:disabled { opacity: 0.6; cursor: default; }
+.layout > * { min-width: 0; }
 .layout { display: grid; gap: 16px; grid-template-columns: 1fr; }
 @media (min-width: 1000px) { .layout { grid-template-columns: 1fr 1fr; align-items: start; } }
 .header, .positions { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
@@ -63,3 +64,31 @@ button:disabled { opacity: 0.6; cursor: default; }
 .empty { text-align: center; padding: 48px 16px; }
 .login form { display: flex; flex-direction: column; gap: 8px; max-width: 320px; }
 .login input { font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+
+/* Chart and allocation bar: categorical slots from the validated dataviz palette. */
+:root {
+  --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100;
+  --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #6250d6; --cat-8: #e34948;
+  --cat-other: #898781; --viz-grid: #e1e0d9; --viz-axis: #c3c2b7;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
+    --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9; --cat-8: #e66767;
+    --cat-other: #898781; --viz-grid: #2c2c2a; --viz-axis: #383835;
+  }
+}
+.chart, .allocation { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 16px; }
+.chart-controls { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; margin-bottom: 12px; }
+.segmented { display: flex; gap: 4px; }
+.segmented button { padding: 6px 12px; min-height: 36px; }
+.chart-legend, .allocation-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.875rem; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.legend-share { color: var(--muted); }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.swatch-line { width: 14px; height: 2px; border-radius: 1px; margin-right: 6px; vertical-align: middle; }
+.chart-plot { height: 260px; margin-top: 8px; }
+.chart-tooltip { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 0.875rem; }
+.chart-tooltip-date { color: var(--muted); margin-bottom: 4px; }
+.allocation-bar { display: flex; gap: 2px; height: 8px; margin-bottom: 12px; }
+.allocation-bar span { min-width: 2px; border-radius: 4px; }

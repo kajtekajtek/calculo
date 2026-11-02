@@ -121,6 +121,23 @@ describe("DashboardPage", () => {
   });
 });
 
+describe("DashboardPage allocation colours", () => {
+  it("keeps a position's colour after switching the account filter", async () => {
+    handlers["/api/accounts"] = () => json(accounts);
+    handlers["/api/portfolio"] = () => json(view());
+    const { container } = renderDashboard();
+    await screen.findByText("12 346 zł", { normalizer: (s) => s });
+    const colour = () => container.querySelector<HTMLElement>('.allocation-bar [data-key="BBB.PL"]')?.style.backgroundColor;
+    const before = colour();
+    expect(before).toBeTruthy();
+    handlers["/api/portfolio"] = () => json(view({ positions: [view().positions[0]] }));
+    await userEvent.click(screen.getByRole("button", { name: "Konto BBB" }));
+    await waitFor(() => expect(requests).toContain("/api/portfolio?account=a2"));
+    await waitFor(() => expect(container.querySelectorAll(".allocation-bar [data-key]")).toHaveLength(1));
+    expect(colour()).toBe(before);
+  });
+});
+
 describe("App", () => {
   it("shows the login view on 401", async () => {
     handlers["/api/me"] = () => json({ message: "Brak sesji" }, 401);

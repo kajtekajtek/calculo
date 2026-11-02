@@ -1,6 +1,7 @@
 package dev.calculo.portfolio;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import dev.calculo.PostgresTestBase;
 import dev.calculo.xtb.XtbFixture;
@@ -64,6 +65,11 @@ class PortfolioApiIT extends PostgresTestBase {
                 .cash("Stock purchase", "Alpha ETF", "AAA.DE", "ETF", T2, -100.0, 2L, "OPEN BUY 2 @ 50.00", "IKE", 9L)
                 .openAggregate("IKE", "Alpha ETF", "AAA.DE", "ETF", 2.0, 110.0)
                 .build();
+        commit(file);
+        jdbc.update("insert into price_history (ticker, day, close, currency) values ('AAA.DE', '2026-10-30', 60, 'PLN')");
+    }
+
+    private void commit(byte[] file) {
         HttpHeaders fileHeaders = new HttpHeaders();
         fileHeaders.setContentType(MediaType.APPLICATION_OCTET_STREAM);
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -74,7 +80,6 @@ class PortfolioApiIT extends PostgresTestBase {
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         ResponseEntity<Map> r = rest.postForEntity("/api/imports/xtb/commit", new HttpEntity<>(body, headers), Map.class);
         assertThat(r.getStatusCode()).isEqualTo(HttpStatus.OK);
-        jdbc.update("insert into price_history (ticker, day, close, currency) values ('AAA.DE', '2026-10-30', 60, 'PLN')");
     }
 
     private static BigDecimal num(Object o) {
@@ -148,6 +153,33 @@ class PortfolioApiIT extends PostgresTestBase {
                 .isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(rest.getForEntity("/api/portfolio/positions/AAA.DE?account=nieznane", Map.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Pins the unit of the JSON the frontend reads. Hand-computed: 1000 PLN deposited exactly 365 days before today,
+     * now worth 1100 PLN (900 cash + 2 shares at 100), is +10% a year, so returnValue is 10.0 and not 0.1.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void returnsArePercentsInTheJson() {
+        byte[] file = XtbFixture.account("1234567")
+                .cash("Deposit", "", "", "", XtbFixture.serial(Instant.parse("2025-11-02T10:00:00Z")), 1000.0, 1L, "",
+                        "IKE", null)
+                .cash("Stock purchase", "Alpha ETF", "AAA.DE", "ETF", T1, -100.0, 2L, "OPEN BUY 2 @ 50.00", "IKE", 9L)
+                .openAggregate("IKE", "Alpha ETF", "AAA.DE", "ETF", 2.0, 200.0)
+                .build();
+        commit(file);
+        jdbc.update("insert into price_history (ticker, day, close, currency) values ('AAA.DE', '2026-10-30', 100, 'PLN')");
+
+        Map<String, Object> body = rest.getForEntity("/api/portfolio?account=all", Map.class).getBody();
+        Map<String, Object> summary = (Map<String, Object>) body.get("summary");
+        assertThat(num(summary.get("value"))).isEqualByComparingTo("1100");
+        assertThat(num(summary.get("gainPct"))).isEqualByComparingTo("10");
+        assertThat(summary.get("returnAnnualized")).isEqualTo(true);
+        assertThat(((Number) summary.get("returnValue")).doubleValue()).isCloseTo(10.0, within(1e-6));
+        List<Map<String, Object>> series = (List<Map<String, Object>>) body.get("series");
+        assertThat(((Number) series.get(series.size() - 1).get("cumulativeReturn")).doubleValue())
+                .isCloseTo(10.0, within(1e-6));
     }
 
     @Test

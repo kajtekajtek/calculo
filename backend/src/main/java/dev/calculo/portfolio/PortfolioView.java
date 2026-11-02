@@ -8,7 +8,10 @@ import java.util.List;
 public record PortfolioView(Summary summary, List<PositionRow> positions, List<SeriesPoint> series,
                             List<String> warnings, boolean empty) {
 
-    /** {@code pricesAsOf} is the oldest price date among instrument positions, null when there are none. */
+    /**
+     * {@code pricesAsOf} is the oldest price date among instrument positions, null when there are none.
+     * {@code gainPct} and {@code returnValue} are percents: 10.0 means +10%.
+     */
     public record Summary(BigDecimal value, BigDecimal contributions, BigDecimal gain, BigDecimal gainPct,
                           Double returnValue, boolean returnAnnualized, LocalDate pricesAsOf) {}
 
@@ -20,6 +23,7 @@ public record PortfolioView(Summary summary, List<PositionRow> positions, List<S
     public record PositionRow(String key, String name, String kind, BigDecimal value, BigDecimal sharePct,
                               BigDecimal gainPct, LocalDate priceDate, LocalDate firstDay) {}
 
+    /** {@code cumulativeReturn} is a percent: 10.0 means +10%. */
     public record SeriesPoint(LocalDate day, BigDecimal value, BigDecimal contributions, Double cumulativeReturn) {}
 
     public record PurchaseRow(LocalDate day, String accountName, String label, BigDecimal volume, BigDecimal price,

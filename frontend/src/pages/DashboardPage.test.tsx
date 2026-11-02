@@ -83,6 +83,13 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("stopa ważona rocznie")).toBeInTheDocument();
   });
 
+  it("shows the API's percent return as is: 10.0 is +10,0%", async () => {
+    handlers["/api/accounts"] = () => json(accounts);
+    handlers["/api/portfolio"] = () => json(view({ summary: { ...view().summary, returnValue: 10.0 } }));
+    renderDashboard();
+    expect(await screen.findByLabelText("Zwrot")).toHaveTextContent("+10,0%");
+  });
+
   it("shows a dash when the return is null", async () => {
     handlers["/api/accounts"] = () => json(accounts);
     handlers["/api/portfolio"] = () => json(view({ summary: { ...view().summary, returnValue: null } }));

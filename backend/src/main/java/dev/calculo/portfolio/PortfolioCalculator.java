@@ -64,7 +64,7 @@ public final class PortfolioCalculator {
         LocalDate pricesAsOf = drafts.stream().filter(d -> d.priceDate != null).map(d -> d.priceDate)
                 .min(LocalDate::compareTo).orElse(null);
         Summary summary = new Summary(scale(value), scale(contributions), scale(gain), pct(gain, contributions),
-                headline.map(h -> finite(h.value())).orElse(null),
+                headline.map(h -> percent(h.value())).orElse(null),
                 headline.map(Returns.Headline::annualized).orElse(false), pricesAsOf);
         return new PortfolioView(summary, c.rows(drafts, value), c.series(), c.warnings(drafts), c.empty());
     }
@@ -95,7 +95,9 @@ public final class PortfolioCalculator {
         return part.multiply(BigDecimal.valueOf(100)).divide(whole, 2, RoundingMode.HALF_UP);
     }
 
-    private static Double finite(double v) {
+    /** A rate from {@link Returns} (a fraction, 0.10) as the percent the API exposes (10.0); null when not finite. */
+    private static Double percent(double fraction) {
+        double v = fraction * 100;
         return Double.isNaN(v) || Double.isInfinite(v) ? null : v;
     }
 
@@ -317,7 +319,7 @@ public final class PortfolioCalculator {
                 }
                 OptionalDouble r = Returns.cumulative(flows, p.day, p.value.doubleValue());
                 series.add(new SeriesPoint(p.day, scale(p.value), scale(contributed),
-                        r.isPresent() ? finite(r.getAsDouble()) : null));
+                        r.isPresent() ? percent(r.getAsDouble()) : null));
             }
             return series;
         }

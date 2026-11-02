@@ -4,7 +4,9 @@ export interface Summary {
   value: number;
   contributions: number;
   gain: number;
+  /** Percent: 10.0 means +10%. */
   gainPct: number | null;
+  /** Percent: 10.0 means +10%. */
   returnValue: number | null;
   returnAnnualized: boolean;
   pricesAsOf: string | null;
@@ -27,6 +29,7 @@ export interface SeriesPoint {
   day: string;
   value: number;
   contributions: number;
+  /** Percent: 10.0 means +10%. */
   cumulativeReturn: number | null;
 }
 

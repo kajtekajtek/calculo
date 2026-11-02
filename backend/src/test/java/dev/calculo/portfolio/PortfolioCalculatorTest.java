@@ -408,16 +408,16 @@ class PortfolioCalculatorTest {
         PortfolioView shortHistory = PortfolioCalculator.view(basic(), "all");
         assertThat(shortHistory.summary().returnAnnualized()).isFalse();
         assertThat(shortHistory.summary().returnValue()).isNotNull();
-        // 1000 -> 1110 over 245 days: cumulative return must be 11%
-        assertThat(shortHistory.summary().returnValue()).isEqualTo(0.11, org.assertj.core.data.Offset.offset(1e-6));
+        // 1000 -> 1110 over 245 days: cumulative return must be 11 percent, in percent units like gainPct
+        assertThat(shortHistory.summary().returnValue()).isEqualTo(11.0, org.assertj.core.data.Offset.offset(1e-4));
         SeriesPoint last = shortHistory.series().get(shortHistory.series().size() - 1);
-        assertThat(last.cumulativeReturn()).isEqualTo(0.11, org.assertj.core.data.Offset.offset(1e-6));
+        assertThat(last.cumulativeReturn()).isEqualTo(11.0, org.assertj.core.data.Offset.offset(1e-4));
 
         List<OperationRow> ops = List.of(deposit("xtb:IKE", "2025-10-01", "1000"),
                 buy("xtb:IKE", "AAA.DE", "2025-10-02", "900", "p1", "10"));
         PortfolioView longHistory = PortfolioCalculator.view(inputs(List.of(IKE), ops), "all");
         assertThat(longHistory.summary().returnAnnualized()).isTrue();
-        assertThat(longHistory.summary().returnValue()).isEqualTo(0.0915817, org.assertj.core.data.Offset.offset(1e-6));
+        assertThat(longHistory.summary().returnValue()).isEqualTo(9.15817, org.assertj.core.data.Offset.offset(1e-4));
     }
 
     @Test

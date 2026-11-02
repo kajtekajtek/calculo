@@ -169,10 +169,16 @@ public final class XtbExportParser {
             Row row = sheet.getRow(r);
             if (row == null) continue;
             Double time = number(cell(row, col, "time"));
-            if (time == null) continue; // footer rows such as totals carry no time
             int rowNo = r + 1;
             String product = text(cell(row, col, "product"));
             if (!product.isEmpty() && !products.contains(product)) products.add(product);
+            if (time == null) {
+                // Footer rows (e.g. totals) have neither amount nor ID; anything else lost its time and must be reported.
+                if (text(cell(row, col, "amount")).isEmpty() && text(cell(row, col, "id")).isEmpty()) continue;
+                problems.add(new ImportProblem(file, "Cash Operations", rowNo,
+                        "Brak czasu operacji lub czas jest nieczytelny."));
+                continue;
+            }
             String typeName = text(cell(row, col, "type"));
             String comment = text(cell(row, col, "comment"));
             OperationType type = operationType(typeName);

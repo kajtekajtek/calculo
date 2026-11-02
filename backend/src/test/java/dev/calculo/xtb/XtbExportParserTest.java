@@ -113,6 +113,25 @@ class XtbExportParserTest {
     }
 
     @Test
+    void timelessWithdrawalRowIsAProblem() {
+        byte[] file = ike().cash("Withdrawal", "", "", "", null, -5.0, 1L, "", "IKE", null).build();
+        ParsedExport p = parse("a.xlsx", file);
+        assertThat(p.problems()).hasSize(1);
+        assertThat(p.problems().get(0).row()).isEqualTo(6);
+        assertThat(p.accounts().get(0).operations()).isEmpty();
+    }
+
+    @Test
+    void timelessPurchaseRowIsAProblem() {
+        byte[] file = ike().cash("Stock purchase", "Alpha", "AAA.DE", "ETF", null, -5.0, 1L,
+                "OPEN BUY 1 @ 10.00", "IKE", 3L).build();
+        ParsedExport p = parse("a.xlsx", file);
+        assertThat(p.problems()).hasSize(1);
+        assertThat(p.problems().get(0).message()).containsIgnoringCase("czas");
+        assertThat(p.accounts().get(0).operations()).isEmpty();
+    }
+
+    @Test
     void openPositionsKeepAggregateRowsOnlyAndReadReportTime() {
         Instant at = Instant.parse("2026-11-02T10:00:00Z");
         byte[] file = ike().reportedAt(at)

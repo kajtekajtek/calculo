@@ -395,25 +395,43 @@ class PortfolioCalculatorTest {
                 buy("xtb:IKE", "AAA.DE", "2025-10-02", "900", "p1", "10"));
         PortfolioView longHistory = PortfolioCalculator.view(inputs(List.of(IKE), ops), "all");
         assertThat(longHistory.summary().returnAnnualized()).isTrue();
-        assertThat(longHistory.summary().returnValue()).isNotNull();
+        assertThat(longHistory.summary().returnValue()).isEqualTo(0.0915817, org.assertj.core.data.Offset.offset(1e-6));
     }
 
     @Test
-    void detailMergesPurchaseRowsSharingPositionId() {
-        List<OperationRow> ops = new ArrayList<>(basicOps());
-        ops.add(op("xtb:IKE", OperationType.PURCHASE, "AAA.DE", "2026-03-03", "-45", "p1", "5", "9"));
+    void detailMergesPurchaseRowsSharingPositionIdWithWeightedPrice() {
+        List<OperationRow> ops = new ArrayList<>();
+        ops.add(deposit("xtb:IKE", "2026-03-02", "2000"));
+        ops.add(op("xtb:IKE", OperationType.PURCHASE, "AAA.DE", "2026-03-03", "-500", "p1", "10", "50"));
+        ops.add(op("xtb:IKE", OperationType.PURCHASE, "AAA.DE", "2026-03-03", "-260", "p1", "5", "52"));
         ops.add(buy("xtb:IKE", "AAA.DE", "2026-05-02", "100", "p2", "1"));
         PositionDetail d = PortfolioCalculator.detail(inputs(List.of(IKE), ops), "all", "AAA.DE");
         assertThat(d.purchases()).hasSize(2);
         var first = d.purchases().get(0);
         assertThat(first.day()).isEqualTo(LocalDate.parse("2026-03-03"));
         assertMoney(first.volume(), "15");
-        assertMoney(first.amountPln(), "945");
-        assertMoney(first.price(), "0");
+        assertMoney(first.amountPln(), "760");
+        assertMoney(first.price(), "50.666667"); // (10*50 + 5*52) / 15
         assertMoney(first.valueNow(), "1500");
         assertThat(first.accountName()).isEqualTo("IKE XTB");
         assertThat(first.label()).isEqualTo("AAA.DE");
         assertMoney(d.row().value(), "1600");
+    }
+
+    @Test
+    void modestEarlyGainStillHasReturn() {
+        List<OperationRow> ops = List.of(deposit("xtb:IKE", "2026-10-26", "100"),
+                deposit("xtb:IKE", "2026-10-26", "50"));
+        // Same-day deposits 150, value 240 after 7 days (no way to reach it with cash alone: add a priced buy)
+        List<OperationRow> all = new ArrayList<>(ops);
+        all.add(buy("xtb:IKE", "AAA.DE", "2026-10-27", "150", "q1", "1.5")); // 1.5 * 100 = 150 + cash 0
+        all.add(dividend("xtb:IKE", "AAA.DE", "2026-10-28", "90"));
+        PortfolioView v = PortfolioCalculator.view(inputs(List.of(IKE), all), "all");
+        assertMoney(v.summary().value(), "240");
+        assertThat(v.summary().returnValue()).isNotNull();
+        assertThat(point(v.series(), "2026-10-30").cumulativeReturn()).isNotNull();
+        assertThat(point(v.series(), "2026-11-02").cumulativeReturn())
+                .isEqualTo(v.summary().returnValue());
     }
 
     @Test

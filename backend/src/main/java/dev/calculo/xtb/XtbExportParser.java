@@ -200,6 +200,11 @@ public final class XtbExportParser {
             BigDecimal volume = null;
             BigDecimal price = null;
             if (type == OperationType.PURCHASE) {
+                if (text(cell(row, col, "ticker")).isEmpty()) {
+                    problems.add(new ImportProblem(file, "Cash Operations", rowNo,
+                            "Zakup bez tickera instrumentu."));
+                    continue;
+                }
                 Matcher m = PURCHASE_COMMENT.matcher(comment);
                 if (!m.find()) {
                     problems.add(new ImportProblem(file, "Cash Operations", rowNo,

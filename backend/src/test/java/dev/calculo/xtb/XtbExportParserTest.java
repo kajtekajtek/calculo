@@ -129,6 +129,16 @@ class XtbExportParserTest {
     }
 
     @Test
+    void purchaseWithoutTickerIsAProblem() {
+        byte[] file = ike().cash("Stock purchase", "Alpha", "", "ETF", T, -5.0, 1L,
+                "OPEN BUY 1 @ 10.00", "IKE", 3L).build();
+        ParsedExport p = parse("a.xlsx", file);
+        assertThat(p.problems()).hasSize(1);
+        assertThat(p.problems().get(0).message()).containsIgnoringCase("ticker");
+        assertThat(p.accounts().get(0).operations()).isEmpty();
+    }
+
+    @Test
     void timelessPurchaseRowIsAProblem() {
         byte[] file = ike().cash("Stock purchase", "Alpha", "AAA.DE", "ETF", null, -5.0, 1L,
                 "OPEN BUY 1 @ 10.00", "IKE", 3L).build();

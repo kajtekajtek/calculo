@@ -12,7 +12,7 @@ public final class Returns {
     public record Headline(double value, boolean annualized) {}
 
     private static final double LOW = -0.99;
-    private static final double HIGH = 100;
+    private static final double HIGH = 1e300; // a few days of history annualizes to astronomically large rates
     private static final int ITERATIONS = 200;
     private static final double YEAR_DAYS = 365.0;
 
@@ -39,7 +39,11 @@ public final class Returns {
             return OptionalDouble.of(lo);
         }
         for (int i = 0; i < ITERATIONS; i++) {
-            double mid = (lo + hi) / 2;
+            // Geometric midpoint of 1+rate: the plausible range spans hundreds of orders of magnitude.
+            double mid = Math.sqrt((1 + lo) * (1 + hi)) - 1;
+            if (mid == lo || mid == hi) {
+                break;
+            }
             double fMid = residual(flows, asOf, value, mid);
             if (fMid == 0) {
                 return OptionalDouble.of(mid);
@@ -51,7 +55,7 @@ public final class Returns {
                 fLo = fMid;
             }
         }
-        return OptionalDouble.of((lo + hi) / 2);
+        return OptionalDouble.of(Math.sqrt((1 + lo) * (1 + hi)) - 1);
     }
 
     /** Total return over the whole history, derived from the XIRR. */
@@ -91,6 +95,8 @@ public final class Returns {
             double years = ChronoUnit.DAYS.between(f.date(), asOf) / YEAR_DAYS;
             sum += f.amount() * Math.pow(1 + rate, years);
         }
-        return sum - value;
+        double result = sum - value;
+        // Overflow means the rate is far too high: treat as positive so bisection moves down.
+        return Double.isFinite(result) ? result : Double.POSITIVE_INFINITY;
     }
 }

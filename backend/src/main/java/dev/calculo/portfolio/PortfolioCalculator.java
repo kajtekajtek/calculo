@@ -408,22 +408,29 @@ public final class PortfolioCalculator {
             }).toList();
         }
 
-        /** Rows sharing an account and position id are fills of one purchase and merge into one row. */
+        /** Rows sharing an account and position id are fills of one purchase and merge into one row (volume-weighted price). */
         List<PurchaseRow> instrumentPurchaseRows(String ticker) {
-            record Acc(LocalDate day, String account, BigDecimal[] sums, BigDecimal price) {}
+            // sums: volume, cost, volume with a known price, notional of those fills
+            record Acc(LocalDate day, String account, BigDecimal[] sums) {}
             Map<String, Acc> merged = new LinkedHashMap<>();
             for (Op o : ops) {
                 OperationRow r = o.row;
                 if (r.type() != OperationType.PURCHASE || !ticker.equals(r.ticker())) continue;
                 String id = r.positionId() == null ? "ext:" + r.externalId() : r.positionId();
                 Acc acc = merged.computeIfAbsent(r.accountId() + "|" + id, k -> new Acc(o.day, r.accountId(),
-                        new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO}, r.price()));
-                acc.sums[0] = acc.sums[0].add(r.volume() == null ? BigDecimal.ZERO : r.volume());
+                        new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO}));
+                BigDecimal volume = r.volume() == null ? BigDecimal.ZERO : r.volume();
+                acc.sums[0] = acc.sums[0].add(volume);
                 acc.sums[1] = acc.sums[1].add(r.amountPln().negate());
+                if (r.price() != null) {
+                    acc.sums[2] = acc.sums[2].add(volume);
+                    acc.sums[3] = acc.sums[3].add(volume.multiply(r.price()));
+                }
             }
             Optional<PricedAt> price = in.market().pricePln(ticker, today);
             return merged.values().stream().map(a -> new PurchaseRow(a.day, accountNames.getOrDefault(a.account, a.account),
-                    ticker, a.sums[0], a.price, a.sums[1],
+                    ticker, a.sums[0],
+                    a.sums[2].signum() == 0 ? null : a.sums[3].divide(a.sums[2], 6, RoundingMode.HALF_UP), a.sums[1],
                     price.map(p -> scale(a.sums[0].multiply(p.pln()))).orElse(a.sums[1]))).toList();
         }
     }

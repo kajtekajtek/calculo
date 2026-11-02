@@ -64,4 +64,18 @@ class ReturnsTest {
     void headlineEmptyWhenOnlyFlowIsAfterAsOf() {
         assertTrue(Returns.headline(List.of(flow("2025-07-01", 500)), d("2025-06-01"), 500).isEmpty());
     }
+
+    @Test
+    void modestGainOverFewDaysHasCumulativeReturn() {
+        var r = Returns.cumulative(List.of(flow("2026-01-01", 1000)), d("2026-01-04"), 1050);
+        assertEquals(0.05, r.getAsDouble(), 1e-6);
+        var doubled = Returns.cumulative(List.of(flow("2026-01-01", 1000)), d("2026-01-02"), 2000);
+        assertEquals(1.0, doubled.getAsDouble(), 1e-6);
+    }
+
+    @Test
+    void zeroValueAndSameDayStayEmpty() {
+        assertTrue(Returns.cumulative(List.of(flow("2026-01-01", 1000)), d("2026-01-04"), 0).isEmpty());
+        assertTrue(Returns.cumulative(List.of(flow("2026-01-01", 1000)), d("2026-01-01"), 1050).isEmpty());
+    }
 }

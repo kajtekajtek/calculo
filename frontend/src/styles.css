@@ -98,7 +98,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 .card h2 { margin-top: 0; font-size: 1.125rem; }
 .form { display: flex; flex-direction: column; gap: 12px; max-width: 420px; }
 .form label { display: flex; flex-direction: column; gap: 4px; }
-.form input, .inline-form input, .card input[type="file"] {
+.card input {
   font: inherit; min-height: 44px; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--surface); color: var(--text);
 }
@@ -108,6 +108,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 .rows li:last-child { border-bottom: 0; }
 .rows .grow { flex: 1 1 140px; }
 .inline-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.inline-form input { width: 7rem; }
+.inline-form input, .rows input { width: 7rem; }
+.card input[type="file"] { width: auto; max-width: 100%; }
 .ok { color: var(--gain); }
 .missing { background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }

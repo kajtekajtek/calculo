@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import RatesPage from "./RatesPage";
-import { json, stubApi } from "./testing";
+import { json, stubApi } from "../test-support";
 
 afterEach(() => {
   vi.unstubAllGlobals();

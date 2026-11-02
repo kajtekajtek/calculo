@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import UpdatePage from "./UpdatePage";
-import { json, stubApi } from "./testing";
+import { json, stubApi } from "../test-support";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -102,6 +102,21 @@ describe("UpdatePage XTB import", () => {
     expect(screen.queryByRole("button", { name: "Zapisz" })).not.toBeInTheDocument();
   });
 
+  it("lets the same file be picked again after a 422 on commit", async () => {
+    const calls = stubApi({
+      "GET /api/bonds": () => json([]),
+      "POST /api/imports/xtb/preview": () => json(preview()),
+      "POST /api/imports/xtb/commit": () => json(preview({ canSave: false, problems: [{ file: "a", sheet: "s", row: 1, message: "Zły" }] }), 422),
+    });
+    renderPage();
+    const f = file();
+    await userEvent.upload(screen.getByLabelText("Plik eksportu XTB"), f);
+    await userEvent.click(await screen.findByRole("button", { name: "Zapisz" }));
+    await screen.findByText(/Wiersz 1/);
+    await userEvent.upload(screen.getByLabelText("Plik eksportu XTB"), f);
+    await waitFor(() => expect(calls.filter((c) => c.path.endsWith("/preview"))).toHaveLength(2));
+  });
+
   it("reminds that the export must cover the whole history", () => {
     stubApi({ "GET /api/bonds": () => json([]) });
     renderPage();
@@ -115,7 +130,7 @@ describe("UpdatePage EDO form", () => {
 
   it("defaults to today in local time, has a numeric quantity, saves and clears", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(2026, 10, 2, 23, 59, 30));
+    vi.setSystemTime(new Date(2026, 10, 3, 0, 0, 30));
     let list = [] as unknown[];
     const calls = stubApi({
       "GET /api/bonds": () => json(list),
@@ -123,14 +138,14 @@ describe("UpdatePage EDO form", () => {
     });
     renderPage();
     const date = screen.getByLabelText("Data zakupu");
-    expect(date).toHaveValue("2026-11-02");
+    expect(date).toHaveValue("2026-11-03");
     const qty = screen.getByLabelText("Liczba sztuk");
     expect(qty).toHaveAttribute("inputmode", "numeric");
     await userEvent.type(qty, "3");
     await userEvent.click(screen.getByRole("button", { name: "Zapisz obligacje" }));
     expect(await screen.findByText(/Zapisano.*EDO1126/)).toBeInTheDocument();
     expect(calls.find((c) => c.method === "POST" && c.path === "/api/bonds")!.body)
-      .toEqual({ purchaseDate: "2026-11-02", quantity: 3 });
+      .toEqual({ purchaseDate: "2026-11-03", quantity: 3 });
     expect(screen.getByLabelText("Liczba sztuk")).toHaveValue("");
     expect(await screen.findByText(/EDO1126/, { selector: "li *, li" })).toBeInTheDocument();
   });

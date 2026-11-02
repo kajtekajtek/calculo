@@ -81,7 +81,12 @@ export default function XtbImport() {
       <label>
         Plik eksportu XTB
         <br />
-        <input type="file" accept=".xlsx,.zip" onChange={(e) => choose(e.target.files?.[0])} disabled={busy} />
+        <input type="file" accept=".xlsx,.zip" onChange={(e) => {
+          const chosen = e.target.files?.[0];
+          // Clear the input so picking the same file again (e.g. after a 422) fires onChange.
+          e.target.value = "";
+          choose(chosen);
+        }} disabled={busy} />
       </label>
       {busy && !preview && <p>Sprawdzanie pliku…</p>}
       {error && <p role="alert" className="error">{error}</p>}

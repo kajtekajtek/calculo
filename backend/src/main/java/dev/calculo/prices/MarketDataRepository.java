@@ -43,6 +43,16 @@ public class MarketDataRepository {
                 .query((rs, i) -> Optional.ofNullable(rs.getDate(1)).map(Date::toLocalDate)).single();
     }
 
+    public Optional<LocalDate> earliestPriceDay(String ticker) {
+        return jdbc.sql("select min(day) from price_history where ticker = :t").param("t", ticker)
+                .query((rs, i) -> Optional.ofNullable(rs.getDate(1)).map(Date::toLocalDate)).single();
+    }
+
+    public Optional<LocalDate> earliestFxDay(String currency) {
+        return jdbc.sql("select min(day) from fx_rate where currency = :c").param("c", currency)
+                .query((rs, i) -> Optional.ofNullable(rs.getDate(1)).map(Date::toLocalDate)).single();
+    }
+
     public Optional<LocalDate> latestFxDay(String currency) {
         return jdbc.sql("select max(day) from fx_rate where currency = :c").param("c", currency)
                 .query((rs, i) -> Optional.ofNullable(rs.getDate(1)).map(Date::toLocalDate)).single();

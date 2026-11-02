@@ -40,6 +40,7 @@ class PriceSyncIT extends PostgresTestBase {
 
     static final List<PriceCall> PRICE_CALLS = new CopyOnWriteArrayList<>();
     static final List<FxCall> FX_CALLS = new CopyOnWriteArrayList<>();
+    static final Set<String> FAILING_FX = ConcurrentHashMap.newKeySet();
     static final Set<String> FAILING = ConcurrentHashMap.newKeySet();
 
     @TestConfiguration
@@ -62,6 +63,9 @@ class PriceSyncIT extends PostgresTestBase {
         FxProvider stubFx() {
             return (currency, from, to) -> {
                 FX_CALLS.add(new FxCall(currency, from, to));
+                // background syncs left over from other tests must not trip the failure injected for the test thread
+                if (!Thread.currentThread().getName().equals("price-sync")
+                        && FAILING_FX.contains(currency + "@" + FX_CALLS.size())) throw new PriceUnavailableException("fx boom");
                 Map<LocalDate, BigDecimal> rates = new TreeMap<>();
                 for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
                     if (d.getDayOfWeek().getValue() < 6) rates.put(d, new BigDecimal("4.30"));
@@ -87,6 +91,7 @@ class PriceSyncIT extends PostgresTestBase {
         PRICE_CALLS.clear();
         FX_CALLS.clear();
         FAILING.clear();
+        FAILING_FX.clear();
         jdbc.update("delete from price_history");
         jdbc.update("delete from fx_rate");
         jdbc.update("delete from operation");
@@ -140,7 +145,7 @@ class PriceSyncIT extends PostgresTestBase {
         // Already up to date: only the last stored day (today) is re-fetched, not the whole history.
         assertThat(PRICE_CALLS).contains(
                 new PriceCall("BBB.OVERRIDE", LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 2)));
-        assertThat(FX_CALLS.get(0).from()).isEqualTo(LocalDate.of(2026, 10, 30));
+        assertThat(FX_CALLS).extracting(FxCall::from).contains(LocalDate.of(2026, 10, 30));
     }
 
     @Test
@@ -149,7 +154,7 @@ class PriceSyncIT extends PostgresTestBase {
 
         sync.sync();
 
-        assertThat(sync.syncStatus()).containsOnlyKeys("AAA.DE");
+        assertThat(sync.syncStatus()).containsKey("AAA.DE").doesNotContainKey("BBB.PL");
         assertThat(sync.syncStatus().get("AAA.DE")).contains("boom");
         assertThat(jdbc.queryForObject("select count(*) from price_history where ticker = 'BBB.PL'", Integer.class))
                 .isPositive();
@@ -159,7 +164,7 @@ class PriceSyncIT extends PostgresTestBase {
         FAILING.clear();
         sync.sync();
 
-        assertThat(sync.syncStatus()).isEmpty();
+        assertThat(sync.syncStatus()).isEmpty(); // a full success clears every earlier error
         assertThat(jdbc.queryForObject("select count(*) from price_history where ticker = 'AAA.DE'", Integer.class))
                 .isPositive();
     }
@@ -191,5 +196,31 @@ class PriceSyncIT extends PostgresTestBase {
 
         await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() ->
                 assertThat(jdbc.queryForObject("select count(*) from price_history", Integer.class)).isPositive());
+    }
+
+    @Test
+    void olderOperationsImportedLaterGetTheirPricesAndRates() {
+        jdbc.update("insert into price_history (ticker, day, close, currency) values ('AAA.DE', '2026-10-29', 9, 'EUR')");
+        jdbc.update("insert into fx_rate (currency, day, mid) values ('EUR', '2026-10-29', 4.2)");
+
+        sync.sync();
+
+        assertThat(PRICE_CALLS).contains(new PriceCall("AAA.DE", LocalDate.of(2026, 10, 26), LocalDate.of(2026, 10, 29)));
+        assertThat(FX_CALLS).extracting(FxCall::from).contains(LocalDate.of(2026, 10, 19));
+        assertThat(jdbc.queryForObject("select min(day) from price_history where ticker = 'AAA.DE'", java.sql.Date.class))
+                .hasToString("2026-10-26");
+        assertThat(jdbc.queryForObject("select min(day) from fx_rate where currency = 'EUR'", java.sql.Date.class))
+                .hasToString("2026-10-19");
+    }
+
+    @Test
+    void failedSecondChunkStoresNothingForThatCurrency() {
+        jdbc.update("insert into fx_rate (currency, day, mid) values ('EUR', '2026-10-29', 4.2)");
+        FAILING_FX.add("EUR@2"); // the older range is call 1, the range since the last day is call 2
+
+        sync.sync();
+
+        assertThat(jdbc.queryForObject("select count(*) from fx_rate", Integer.class)).isEqualTo(1);
+        assertThat(sync.syncStatus()).containsKey("FX:EUR");
     }
 }

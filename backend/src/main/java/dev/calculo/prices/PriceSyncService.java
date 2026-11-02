@@ -117,13 +117,21 @@ public class PriceSyncService {
     private java.util.Optional<String> syncTicker(InstrumentRow instrument, LocalDate firstDay, LocalDate today) {
         String ticker = instrument.ticker();
         try {
-            // Re-fetch the last stored day: a close saved while the market was still open gets corrected.
-            LocalDate from = repository.latestPriceDay(ticker).orElse(firstDay);
-            if (from.isAfter(today)) return java.util.Optional.empty();
-            PriceSeries series = prices.history(symbols.symbol(ticker, instrument.priceSymbol()), from, today);
-            repository.savePrices(ticker, series.currency(), series.prices());
+            // All-or-nothing: every range is fetched before anything is stored, so a failure leaves no gap.
+            // Re-fetching the last stored day corrects a close saved while the market was still open.
+            java.util.List<DailyPrice> fetched = new java.util.ArrayList<>();
+            String currency = null;
+            for (DateRange range : missingRanges(firstDay, repository.earliestPriceDay(ticker),
+                    repository.latestPriceDay(ticker), today)) {
+                PriceSeries series = prices.history(symbols.symbol(ticker, instrument.priceSymbol()),
+                        range.from(), range.to());
+                fetched.addAll(series.prices());
+                currency = series.currency();
+            }
+            if (currency == null) return java.util.Optional.empty();
+            repository.savePrices(ticker, currency, fetched);
             status.remove(ticker);
-            return java.util.Optional.of(series.currency());
+            return java.util.Optional.of(currency);
         } catch (PriceUnavailableException | RuntimeException e) {
             log.warn("Price sync failed for {}: {}", ticker, e.getMessage());
             status.put(ticker, String.valueOf(e.getMessage()));
@@ -134,15 +142,32 @@ public class PriceSyncService {
     private void syncFx(String currency, LocalDate firstDay, LocalDate today) {
         String key = "FX:" + currency;
         try {
-            LocalDate from = repository.latestFxDay(currency).orElse(firstDay.minusDays(FX_LOOKBACK_DAYS));
-            if (from.isAfter(today)) return;
-            Map<LocalDate, BigDecimal> rates = fx.rates(currency, from, today);
-            repository.saveFx(currency, rates);
+            Map<LocalDate, BigDecimal> fetched = new TreeMap<>();
+            for (DateRange range : missingRanges(firstDay.minusDays(FX_LOOKBACK_DAYS),
+                    repository.earliestFxDay(currency), repository.latestFxDay(currency), today)) {
+                fetched.putAll(fx.rates(currency, range.from(), range.to()));
+            }
+            repository.saveFx(currency, fetched);
             status.remove(key);
         } catch (PriceUnavailableException | RuntimeException e) {
             log.warn("FX sync failed for {}: {}", currency, e.getMessage());
             status.put(key, String.valueOf(e.getMessage()));
         }
+    }
+
+    private record DateRange(LocalDate from, LocalDate to) {}
+
+    /** Ranges to fetch: everything when nothing is stored, else the older part and the part since the last day. */
+    private static java.util.List<DateRange> missingRanges(LocalDate needFrom, java.util.Optional<LocalDate> earliest,
+                                                            java.util.Optional<LocalDate> latest, LocalDate today) {
+        java.util.List<DateRange> ranges = new java.util.ArrayList<>();
+        if (earliest.isEmpty() || latest.isEmpty()) {
+            if (!needFrom.isAfter(today)) ranges.add(new DateRange(needFrom, today));
+            return ranges;
+        }
+        if (needFrom.isBefore(earliest.get())) ranges.add(new DateRange(needFrom, earliest.get()));
+        if (!latest.get().isAfter(today)) ranges.add(new DateRange(latest.get(), today));
+        return ranges;
     }
 
     private Map<String, LocalDate> firstOperationDays() {

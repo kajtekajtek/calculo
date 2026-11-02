@@ -18,3 +18,9 @@ management:
         include: health
 calculo:
   bond-account-name: ${CALCULO_BOND_ACCOUNT_NAME:Obligacje}
+  prices:
+    sync-on-startup: true
+    sync-on-import: true
+    schedule-enabled: true
+    suffix-map:
+      PL: WA

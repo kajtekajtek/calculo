@@ -1,0 +1,8 @@
+# Brainstorming mockups (contain real portfolio figures)
+.superpowers/
+
+# Real broker exports and screenshots: never commit
+docs/[0-9]*
+docs/*.png
+*.xlsx
+*.zip

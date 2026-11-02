@@ -23,4 +23,23 @@ class SessionCookieIT extends PostgresTestBase {
         assertThat(cookie).contains("HttpOnly").contains("SameSite=Lax").contains("Max-Age=2592000")
                 .doesNotContain("Secure");
     }
+
+    @Test
+    void anonymousRequestsNeverCreateASession() {
+        for (String accept : new String[] {"*/*", "text/html"}) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.ACCEPT, accept);
+            ResponseEntity<String> r = rest.exchange("/api/portfolio", org.springframework.http.HttpMethod.GET,
+                    new org.springframework.http.HttpEntity<>(headers), String.class);
+            assertThat(r.getStatusCode().value()).isEqualTo(401);
+            var cookies = r.getHeaders().get(HttpHeaders.SET_COOKIE);
+            if (cookies != null) assertThat(cookies).noneMatch(c -> c.startsWith("JSESSIONID="));
+        }
+    }
+
+    @Test
+    void anonymousMutatingRequestWithoutCsrfTokenIs403() {
+        ResponseEntity<String> r = rest.postForEntity("/api/prices/refresh", null, String.class);
+        assertThat(r.getStatusCode().value()).isEqualTo(403);
+    }
 }

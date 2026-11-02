@@ -42,6 +42,7 @@ public class SecurityConfig {
         csrfTokens.setCookieCustomizer(c -> c.sameSite("Lax"));
 
         http
+            .requestCache(c -> c.disable())
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .csrf(csrf -> csrf

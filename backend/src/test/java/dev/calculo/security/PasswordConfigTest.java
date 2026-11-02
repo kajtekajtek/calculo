@@ -31,6 +31,14 @@ class PasswordConfigTest {
     }
 
     @Test
+    void placeholderPasswordFailsStartupNamingTheVariable() {
+        runner.withPropertyValues("calculo.auth.password=change-me").run(ctx -> {
+            assertThat(ctx).hasFailed();
+            assertThat(rootMessage(ctx.getStartupFailure())).contains("CALCULO_PASSWORD").contains("change-me");
+        });
+    }
+
+    @Test
     void missingPasswordFailsStartupNamingTheVariable() {
         runner.run(ctx -> {
             assertThat(ctx).hasFailed();

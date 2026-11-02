@@ -6,3 +6,8 @@ docs/[0-9]*
 docs/*.png
 *.xlsx
 *.zip
+
+.env
+target/
+node_modules/
+dist/

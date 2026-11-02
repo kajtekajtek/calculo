@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: calculo
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/calculo}
+    username: ${DB_USER:calculo}
+    password: ${POSTGRES_PASSWORD:}
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  jackson:
+    time-zone: Europe/Warsaw
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

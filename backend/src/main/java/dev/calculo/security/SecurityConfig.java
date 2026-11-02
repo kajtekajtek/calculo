@@ -54,6 +54,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/login").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/actuator/**").denyAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll())
             .logout(logout -> logout

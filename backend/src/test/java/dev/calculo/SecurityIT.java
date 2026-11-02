@@ -57,6 +57,12 @@ class SecurityIT extends PostgresTestBase {
     }
 
     @Test
+    void otherActuatorEndpointsAreClosedEvenWhenLoggedIn() throws Exception {
+        mvc.perform(get("/actuator/info")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/actuator/env").session(loginSession())).andExpect(status().isForbidden());
+    }
+
+    @Test
     void wrongPasswordIs401AndRightPasswordOpensTheSession() throws Exception {
         mvc.perform(login("zle")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").isNotEmpty());
         mvc.perform(login("")).andExpect(status().isUnauthorized());

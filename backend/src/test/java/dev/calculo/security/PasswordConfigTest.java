@@ -56,6 +56,11 @@ class PasswordConfigTest {
         });
     }
 
+    @Test
+    void toStringDoesNotRevealThePassword() {
+        assertThat(new AuthProperties("s3cret-value").toString()).doesNotContain("s3cret-value");
+    }
+
     private static String rootMessage(Throwable t) {
         while (t.getCause() != null) t = t.getCause();
         return t.getMessage();

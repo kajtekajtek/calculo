@@ -17,4 +17,9 @@ public record AuthProperties(String password) {
                     + "' from .env.example. Set the CALCULO_PASSWORD environment variable to your own password.");
         }
     }
+
+    @Override
+    public String toString() {
+        return "AuthProperties[password=****]";
+    }
 }

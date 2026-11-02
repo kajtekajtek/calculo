@@ -1,0 +1,12 @@
+# Demo mode: fictional data and offline prices, kept in a separate database volume.
+#   docker compose -f compose.yaml -f compose.demo.yaml up --build
+services:
+  db:
+    volumes:
+      - calculo-demo-db:/var/lib/postgresql/data
+  app:
+    environment:
+      SPRING_PROFILES_ACTIVE: demo
+
+volumes:
+  calculo-demo-db:

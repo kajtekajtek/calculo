@@ -5,10 +5,28 @@ services:
       POSTGRES_DB: calculo
       POSTGRES_USER: calculo
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-    ports:
-      - "5432:5432"
     volumes:
       - calculo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U calculo -d calculo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/calculo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      CALCULO_PASSWORD: ${CALCULO_PASSWORD:?set CALCULO_PASSWORD in .env}
+      CALCULO_BOND_ACCOUNT_NAME: ${CALCULO_BOND_ACCOUNT_NAME:-Obligacje}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
 
 volumes:
   calculo-db:

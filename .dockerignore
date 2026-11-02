@@ -1,0 +1,9 @@
+docs/
+.env
+.superpowers/
+.git/
+**/target/
+**/node_modules/
+**/dist/
+*.xlsx
+*.zip

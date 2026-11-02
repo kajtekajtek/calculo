@@ -14,6 +14,7 @@
   <name>calculo</name>
   <properties>
     <java.version>21</java.version>
+    <!-- Pinned above the Spring Boot default: older Testcontainers cannot talk to Docker 29 (API version too old). -->
     <testcontainers.version>1.21.4</testcontainers.version>
   </properties>
   <dependencies>

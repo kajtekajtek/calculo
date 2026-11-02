@@ -16,3 +16,5 @@ management:
     web:
       exposure:
         include: health
+calculo:
+  bond-account-name: ${CALCULO_BOND_ACCOUNT_NAME:Obligacje}

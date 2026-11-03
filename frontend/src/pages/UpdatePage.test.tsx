@@ -202,6 +202,33 @@ describe("UpdatePage EDO form", () => {
     expect(screen.getByLabelText("Liczba sztuk")).toHaveValue("3");
   });
 
+  it("clears the saved message when a later attempt fails", async () => {
+    let answer = () => json(bond, 201);
+    stubApi({ "GET /api/bonds": () => json([]), "POST /api/bonds": () => answer() });
+    renderPage();
+    await userEvent.type(screen.getByLabelText("Liczba sztuk"), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Zapisz obligacje" }));
+    await screen.findByText(/Zapisano/);
+
+    answer = () => json({ message: "Błąd zapisu" }, 400);
+    await userEvent.type(screen.getByLabelText("Liczba sztuk"), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Zapisz obligacje" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Błąd zapisu");
+    expect(screen.queryByText(/Zapisano/)).not.toBeInTheDocument();
+  });
+
+  it("clears the saved message when a later entry does not pass validation", async () => {
+    stubApi({ "GET /api/bonds": () => json([]), "POST /api/bonds": () => json(bond, 201) });
+    renderPage();
+    await userEvent.type(screen.getByLabelText("Liczba sztuk"), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Zapisz obligacje" }));
+    await screen.findByText(/Zapisano/);
+
+    await userEvent.click(screen.getByRole("button", { name: "Zapisz obligacje" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Liczba sztuk");
+    expect(screen.queryByText(/Zapisano/)).not.toBeInTheDocument();
+  });
+
   it("does not send twice on a double tap and shows a pending state", async () => {
     let release: (r: Response) => void = () => {};
     const calls = stubApi({

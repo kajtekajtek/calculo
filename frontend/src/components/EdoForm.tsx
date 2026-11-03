@@ -30,6 +30,7 @@ export default function EdoForm() {
     inFlight.current = true;
     setBusy(true);
     setError(null);
+    setSaved(null);
     try {
       await action();
     } catch (e) {
@@ -51,6 +52,7 @@ export default function EdoForm() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    setSaved(null);
     const qty = parseDecimal(quantity);
     if (qty === null || !Number.isInteger(qty) || qty < 1) {
       setError("Liczba sztuk musi być liczbą całkowitą od 1.");

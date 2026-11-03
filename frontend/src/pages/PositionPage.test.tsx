@@ -75,6 +75,28 @@ describe("PositionPage", () => {
     expect(screen.getByTestId("chart-legend")).toHaveTextContent("Koszt");
   });
 
+  it("shows the price date of a priced instrument in Polish", async () => {
+    stubApi({ "GET /api/portfolio/positions/AAA.DE?account=all": () => json(instrument) });
+    renderApp("/positions/AAA.DE");
+    expect(await screen.findByText("cena z 30 paź 2026")).toBeInTheDocument();
+  });
+
+  it("says an unpriced instrument is valued at cost", async () => {
+    const detail = { ...instrument, row: { ...instrument.row, priceDate: null } };
+    stubApi({ "GET /api/portfolio/positions/AAA.DE?account=all": () => json(detail) });
+    renderApp("/positions/AAA.DE");
+    expect(await screen.findByText("wycena po koszcie")).toBeInTheDocument();
+  });
+
+  it("adds no price note to bonds", async () => {
+    const detail = { ...edo, row: { ...edo.row, priceDate: null } };
+    stubApi({ "GET /api/portfolio/positions/edo?account=all": () => json(detail) });
+    renderApp("/positions/edo");
+    await screen.findByRole("heading", { name: "Obligacje EDO" });
+    expect(screen.queryByText("wycena po koszcie")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^cena z/)).not.toBeInTheDocument();
+  });
+
   it("lists EDO purchases by series with quantity and current value", async () => {
     stubApi({ "GET /api/portfolio/positions/edo?account=all": () => json(edo) });
     renderApp("/positions/edo");

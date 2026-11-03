@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Account, PortfolioView, api } from "../api";
+import { usePriceSync } from "./usePriceSync";
+import { formatDateTime } from "../format";
 import AccountFilter from "../components/AccountFilter";
 import AllocationBar from "../components/AllocationBar";
 import Header from "../components/Header";
@@ -16,9 +18,11 @@ export default function DashboardPage() {
   const setAccount = (id: string) => setParams({ account: id });
   const [view, setView] = useState<PortfolioView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Colour order comes from the unfiltered ("all") view (by first activity day), so a position
-  // keeps its colour when the account filter changes or new positions are added.
+  // Colour order always comes from the unfiltered ("all") view (by first activity day), so a position
+  // keeps its colour when the account filter changes or new positions are added, also on a filtered mount.
   const [colorOrder, setColorOrder] = useState<string[]>([]);
+  const [reload, setReload] = useState(0);
+  const sync = usePriceSync(useCallback(() => setReload((n) => n + 1), []));
 
   useEffect(() => {
     api.get<Account[]>("/api/accounts").then(setAccounts, () => {});
@@ -27,18 +31,18 @@ export default function DashboardPage() {
   useEffect(() => {
     let current = true;
     setError(null);
-    api.get<PortfolioView>(`/api/portfolio?account=${encodeURIComponent(account)}`).then(
-      (v) => {
-        if (!current) return;
-        setView(v);
-        if (account === "all") {
-          setColorOrder(colorKeys(v.positions));
-        }
-      },
+    const selected = api.get<PortfolioView>(`/api/portfolio?account=${encodeURIComponent(account)}`);
+    selected.then(
+      (v) => { if (current) setView(v); },
       (e: Error) => { if (current) setError(e.message); },
     );
+    const all = account === "all" ? selected : api.get<PortfolioView>("/api/portfolio?account=all");
+    all.then(
+      (v) => { if (current) setColorOrder(colorKeys(v.positions)); },
+      () => { /* no colour order: segments stay neutral */ },
+    );
     return () => { current = false; };
-  }, [account]);
+  }, [account, reload]);
 
   return (
     <main className="page">
@@ -55,13 +59,23 @@ export default function DashboardPage() {
       ) : (
         <div className="layout">
           <div className="primary">
-            <Header summary={view.summary} />
+            <Header summary={view.summary}
+              unpriced={view.positions.filter((p) => p.kind === "INSTRUMENT" && p.priceDate === null).length} />
             <ValueChart series={view.series} />
             <AllocationBar positions={view.positions} allKeys={colorOrder} />
           </div>
           <div className="secondary">
             <PositionList positions={view.positions} account={account} />
             <Link className="button" to="/update">Aktualizuj dane</Link>
+            <div className="price-refresh">
+              <button type="button" onClick={() => void sync.refresh()} disabled={sync.running}>
+                {sync.running ? "Odświeżanie…" : "Odśwież notowania"}
+              </button>
+              {sync.notBefore && (
+                <p className="label">Serwis notowań ogranicza zapytania. Kolejna próba nie wcześniej niż {formatDateTime(sync.notBefore)}.</p>
+              )}
+              {sync.error && <p role="alert" className="error">{sync.error}</p>}
+            </div>
           </div>
         </div>
       )}

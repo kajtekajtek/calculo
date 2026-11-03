@@ -18,7 +18,8 @@ export interface PositionRow {
   name: string;
   kind: "INSTRUMENT" | "BONDS" | "CASH";
   value: number;
-  sharePct: number;
+  /** Null when the portfolio total is not positive. */
+  sharePct: number | null;
   gainPct: number | null;
   priceDate: string | null;
   /** Warsaw day of the position's first activity; orders colour slots. */
@@ -32,6 +33,9 @@ export interface SeriesPoint {
   /** Percent: 10.0 means +10%. */
   cumulativeReturn: number | null;
 }
+
+/** running: a sync is queued or in progress. notBefore: end of a rate-limit cooldown (ISO instant), null when none. */
+export interface PriceStatus { running: boolean; notBefore: string | null }
 
 export interface PortfolioView {
   summary: Summary;

@@ -37,6 +37,19 @@ export function formatDay(iso: string): string {
   return dateFormat.format(new Date(`${iso}T00:00:00Z`));
 }
 
+const dateTimeFormat = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Warsaw" });
+
+/** ISO instant in Warsaw time, e.g. "3 lis 2026, 00:30". */
+export function formatDateTime(iso: string): string {
+  return dateTimeFormat.format(new Date(iso));
+}
+
+/** Where an instrument's value comes from; null for positions that have no market price (bonds, cash). */
+export function priceNote({ kind, priceDate }: { kind: string; priceDate: string | null }): string | null {
+  if (kind !== "INSTRUMENT") return null;
+  return priceDate === null ? "wycena po koszcie" : `cena z ${formatDay(priceDate)}`;
+}
+
 /** ISO day as a short month label for axis ticks, e.g. "lis 26". */
 export function formatMonth(iso: string): string {
   return monthFormat.format(new Date(`${iso}T00:00:00Z`));

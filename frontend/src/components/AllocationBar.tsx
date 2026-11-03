@@ -5,7 +5,9 @@ import { OTHER_COLOR, colorFor, colorKeys } from "../palette";
 const MAX_SEGMENTS = 8;
 const OTHER_KEY = "__other";
 
-interface Segment { key: string; name: string; value: number; sharePct: number; color: string }
+interface Segment { key: string; name: string; value: number; sharePct: number | null; color: string }
+
+const label = (s: Segment) => (s.sharePct === null ? s.name : `${s.name} ${formatShare(s.sharePct)}`);
 
 function toSegments(positions: PositionRow[], allKeys: readonly string[]): Segment[] {
   const sorted = [...positions].filter((p) => p.value > 0).sort((a, b) => b.value - a.value);
@@ -25,7 +27,7 @@ function toSegments(positions: PositionRow[], allKeys: readonly string[]): Segme
       key: OTHER_KEY,
       name: "Inne",
       value: rest.reduce((sum, p) => sum + p.value, 0),
-      sharePct: rest.reduce((sum, p) => sum + p.sharePct, 0),
+      sharePct: rest.some((p) => p.sharePct === null) ? null : rest.reduce((sum, p) => sum + (p.sharePct ?? 0), 0),
       color: OTHER_COLOR,
     });
   }
@@ -41,7 +43,7 @@ export default function AllocationBar({ positions, allKeys }: { positions: Posit
   const keys = allKeys ?? colorKeys(positions);
   const segments = toSegments(positions, keys);
   if (segments.length === 0) return null;
-  const summary = segments.map((s) => `${s.name} ${formatShare(s.sharePct)}`).join(", ");
+  const summary = segments.map(label).join(", ");
   return (
     <div className="allocation">
       <div className="allocation-bar" role="img" aria-label={`Podział portfela: ${summary}`}>
@@ -49,7 +51,7 @@ export default function AllocationBar({ positions, allKeys }: { positions: Posit
           <span
             key={s.key}
             data-key={s.key}
-            title={`${s.name} ${formatShare(s.sharePct)}`}
+            title={label(s)}
             style={{ flexGrow: s.value, backgroundColor: s.color }}
           />
         ))}
@@ -59,7 +61,7 @@ export default function AllocationBar({ positions, allKeys }: { positions: Posit
           <span key={s.key} className="legend-item">
             <i className="swatch" style={{ backgroundColor: s.color }} aria-hidden="true" />
             <span className="legend-name">{s.name}</span>
-            <span className="legend-share">{formatShare(s.sharePct)}</span>
+            {s.sharePct !== null && <span className="legend-share">{formatShare(s.sharePct)}</span>}
           </span>
         ))}
       </div>

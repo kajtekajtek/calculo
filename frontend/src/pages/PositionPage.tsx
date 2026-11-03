@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ApiError, PositionDetail, api } from "../api";
 import ValueChart from "../components/ValueChart";
-import { formatDay, formatDecimal, formatPln } from "../format";
+import { formatDay, formatDecimal, formatPln, priceNote } from "../format";
 
 export default function PositionPage() {
   const { key = "" } = useParams();
@@ -33,11 +33,13 @@ export default function PositionPage() {
   }
   if (!detail) return <main className="page"><p className="center">Ładowanie…</p></main>;
 
+  const note = priceNote(detail.row);
   return (
     <main className="page">
       {back}
       <h1>{detail.row.name}</h1>
       <p className="total">{formatPln(detail.row.value)}</p>
+      {note && <p className="label">{note}</p>}
       <ValueChart series={detail.series} hideReturnToggle costLabel="Koszt" />
       <ul className="positions" aria-label="Zakupy">
         {detail.purchases.map((p, i) => (

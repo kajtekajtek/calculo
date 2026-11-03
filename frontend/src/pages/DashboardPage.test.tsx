@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -35,7 +35,8 @@ function view(over: Partial<PortfolioView> = {}): PortfolioView {
 }
 
 let requests: string[];
-let handlers: Record<string, () => Response>;
+let posts: string[];
+let handlers: Record<string, (url: string) => Response>;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -43,19 +44,23 @@ function json(body: unknown, status = 200) {
 
 beforeEach(() => {
   requests = [];
+  posts = [];
   handlers = {};
-  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit = {}) => {
     requests.push(url);
+    if (init.method === "POST") posts.push(url);
     const path = url.split("?")[0];
     const handler = handlers[path];
-    return handler ? handler() : json({ message: "nie ma" }, 404);
+    return handler ? handler(url) : json({ message: "nie ma" }, 404);
   }));
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function renderDashboard() {
-  return render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+function renderDashboard(path = "/") {
+  return render(<MemoryRouter initialEntries={[path]}><DashboardPage /></MemoryRouter>);
 }
+
+const unpriced = { key: "CCC.PL", name: "Fundusz CCC", kind: "INSTRUMENT", value: 100, sharePct: 1, gainPct: 0, priceDate: null, firstDay: "2026-03-04" } as const;
 
 describe("DashboardPage", () => {
   it("shows value, gain and positions in API order", async () => {
@@ -137,11 +142,125 @@ describe("DashboardPage allocation colours", () => {
     const colour = () => container.querySelector<HTMLElement>('.allocation-bar [data-key="BBB.PL"]')?.style.backgroundColor;
     const before = colour();
     expect(before).toBeTruthy();
-    handlers["/api/portfolio"] = () => json(view({ positions: [view().positions[0]] }));
+    handlers["/api/portfolio"] = (url) => json(url.endsWith("account=all") ? view() : view({ positions: [view().positions[0]] }));
     await userEvent.click(screen.getByRole("button", { name: "Konto BBB" }));
     await waitFor(() => expect(requests).toContain("/api/portfolio?account=a2"));
     await waitFor(() => expect(container.querySelectorAll(".allocation-bar [data-key]")).toHaveLength(1));
     expect(colour()).toBe(before);
+  });
+
+  it("uses the colour order of the all view when mounted on a filtered account", async () => {
+    handlers["/api/accounts"] = () => json(accounts);
+    handlers["/api/portfolio"] = () => json(view());
+    const all = renderDashboard();
+    await screen.findByText("12 346 zł", { normalizer: (s) => s });
+    const expected = all.container.querySelector<HTMLElement>('.allocation-bar [data-key="BBB.PL"]')?.style.backgroundColor;
+    expect(expected).toBe("var(--cat-3)"); // cash, AAA.DE, then BBB.PL
+    all.unmount();
+    requests = [];
+
+    handlers["/api/portfolio"] = (url) => json(url.endsWith("account=all") ? view() : view({ positions: [view().positions[0]] }));
+    const { container } = renderDashboard("/?account=a2");
+    await waitFor(() => expect(container.querySelector<HTMLElement>('.allocation-bar [data-key="BBB.PL"]')?.style.backgroundColor).toBe(expected));
+    expect(requests).toContain("/api/portfolio?account=a2");
+    expect(requests).toContain("/api/portfolio?account=all");
+  });
+});
+
+describe("DashboardPage price freshness", () => {
+  it("shows each position's price date, valuation at cost, and nothing for cash", async () => {
+    handlers["/api/portfolio"] = () => json(view({ positions: [...view().positions, unpriced] }));
+    renderDashboard();
+    const list = await screen.findByRole("list", { name: "Pozycje" });
+    const items = within(list).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("cena z 30 paź 2026");
+    expect(items[2]).not.toHaveTextContent("cena z");
+    expect(items[2]).not.toHaveTextContent("wycena po koszcie");
+    expect(items[3]).toHaveTextContent("wycena po koszcie");
+  });
+
+  it("gives the date in Polish in the header when everything is priced", async () => {
+    handlers["/api/portfolio"] = () => json(view());
+    renderDashboard();
+    expect(await screen.findByRole("region", { name: "Podsumowanie" })).toHaveTextContent("Ceny z dnia 30 paź 2026");
+  });
+
+  it("does not imply freshness in the header when a position is unpriced", async () => {
+    handlers["/api/portfolio"] = () => json(view({ positions: [...view().positions, unpriced] }));
+    renderDashboard();
+    const header = await screen.findByRole("region", { name: "Podsumowanie" });
+    expect(header).not.toHaveTextContent("Ceny z dnia");
+    expect(header).toHaveTextContent("Bez ceny: 1 poz. (wycena po koszcie)");
+  });
+
+  it("renders no share when sharePct is null", async () => {
+    const noShare = view().positions.map((p) => ({ ...p, sharePct: null }));
+    handlers["/api/portfolio"] = () => json(view({ positions: noShare }));
+    const { container } = renderDashboard();
+    await screen.findByRole("list", { name: "Pozycje" });
+    expect(container.querySelector(".positions .share")).toBeNull();
+    expect(container.querySelector(".legend-share")).toBeNull();
+  });
+});
+
+describe("DashboardPage price refresh", () => {
+  const value = (summaryValue: number) => view({ summary: { ...view().summary, value: summaryValue } });
+
+  it("posts the refresh, shows progress and reloads the portfolio when the sync ends", async () => {
+    let running = false;
+    let total = 12345.67;
+    handlers["/api/portfolio"] = () => json(value(total));
+    handlers["/api/prices/status"] = () => json({ running, notBefore: null });
+    handlers["/api/prices/refresh"] = () => { running = true; return new Response(null, { status: 202 }); };
+    renderDashboard();
+    await screen.findByText("12 346 zł", { normalizer: (s) => s });
+    await userEvent.click(screen.getByRole("button", { name: "Odśwież notowania" }));
+    expect(posts).toEqual(["/api/prices/refresh"]);
+    expect(await screen.findByRole("button", { name: "Odświeżanie…" })).toBeDisabled();
+    total = 20000;
+    running = false;
+    expect(await screen.findByText("20 000 zł", { normalizer: (s) => s }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Odśwież notowania" })).toBeEnabled();
+  });
+
+  it("polls a sync already running on mount, as after a first import, and updates without a reload", async () => {
+    let running = true;
+    let total = 12345.67;
+    handlers["/api/portfolio"] = () => json(value(total));
+    handlers["/api/prices/status"] = () => json({ running, notBefore: null });
+    renderDashboard();
+    await screen.findByText("12 346 zł", { normalizer: (s) => s });
+    total = 20000;
+    running = false;
+    expect(await screen.findByText("20 000 zł", { normalizer: (s) => s }, { timeout: 5000 })).toBeInTheDocument();
+    expect(posts).toEqual([]);
+  });
+
+  it("does not reload or poll when nothing is running", async () => {
+    handlers["/api/portfolio"] = () => json(view());
+    handlers["/api/prices/status"] = () => json({ running: false, notBefore: null });
+    renderDashboard();
+    await screen.findByText("12 346 zł", { normalizer: (s) => s });
+    await waitFor(() => expect(requests.filter((r) => r === "/api/prices/status")).toHaveLength(1));
+    expect(requests.filter((r) => r === "/api/portfolio?account=all")).toHaveLength(1);
+  });
+
+  it("shows until when quotes are on hold after a rate limit", async () => {
+    handlers["/api/portfolio"] = () => json(view());
+    handlers["/api/prices/status"] = () => json({ running: false, notBefore: "2026-11-02T23:30:00Z" });
+    renderDashboard();
+    expect(await screen.findByText(/nie wcześniej niż 3 lis 2026.*00:30/)).toBeInTheDocument();
+  });
+
+  it("shows a failed refresh and allows another try", async () => {
+    handlers["/api/portfolio"] = () => json(view());
+    handlers["/api/prices/status"] = () => json({ running: false, notBefore: null });
+    handlers["/api/prices/refresh"] = () => json({ message: "Odmowa" }, 403);
+    renderDashboard();
+    await screen.findByText("12 346 zł", { normalizer: (s) => s });
+    await userEvent.click(screen.getByRole("button", { name: "Odśwież notowania" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Odmowa");
+    expect(screen.getByRole("button", { name: "Odśwież notowania" })).toBeEnabled();
   });
 });
 
@@ -158,5 +277,25 @@ describe("App", () => {
     handlers["/api/portfolio"] = () => json(view());
     render(<MemoryRouter><App /></MemoryRouter>);
     expect(await screen.findByText("12 346 zł", { normalizer: (s) => s })).toBeInTheDocument();
+  });
+
+  it("logs out and returns to the login view", async () => {
+    handlers["/api/me"] = () => json({ authenticated: true });
+    handlers["/api/portfolio"] = () => json(view());
+    handlers["/api/logout"] = () => new Response(null, { status: 204 });
+    render(<MemoryRouter><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "Wyloguj" }));
+    expect(await screen.findByLabelText("Hasło")).toBeInTheDocument();
+    expect(posts).toEqual(["/api/logout"]);
+  });
+
+  it("stays logged in and says so when logging out fails", async () => {
+    handlers["/api/me"] = () => json({ authenticated: true });
+    handlers["/api/portfolio"] = () => json(view());
+    handlers["/api/logout"] = () => json({ message: "Odmowa" }, 403);
+    render(<MemoryRouter><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "Wyloguj" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Nie udało się wylogować");
+    expect(screen.queryByLabelText("Hasło")).not.toBeInTheDocument();
   });
 });

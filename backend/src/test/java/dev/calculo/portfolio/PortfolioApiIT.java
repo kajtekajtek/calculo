@@ -31,7 +31,7 @@ import org.springframework.util.MultiValueMap;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PortfolioApiIT extends PostgresTestBase {
-    private static final double T1 = XtbFixture.serial(Instant.parse("2026-03-02T10:00:00Z"));
+    private static final double T1 = XtbFixture.serial(Instant.parse("2026-03-01T10:00:00Z"));
     private static final double T2 = XtbFixture.serial(Instant.parse("2026-04-02T10:00:00Z"));
 
     @TestConfiguration
@@ -113,7 +113,7 @@ class PortfolioApiIT extends PostgresTestBase {
         assertThat(positions.get(1).get("kind")).isEqualTo("INSTRUMENT");
         assertThat(positions.get(0).get("gainPct")).isNull();
         List<Map<String, Object>> series = (List<Map<String, Object>>) body.get("series");
-        assertThat(series.get(0).get("day")).isEqualTo("2026-03-02");
+        assertThat(series.get(0).get("day")).isEqualTo("2026-03-01");
         assertThat(series.get(series.size() - 1).get("day")).isEqualTo("2026-11-02");
         assertThat((List<String>) body.get("warnings")).isEmpty();
     }

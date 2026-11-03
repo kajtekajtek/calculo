@@ -39,27 +39,29 @@ class EdoCalculatorTest {
 
     @Test
     void seriesCodeFromPurchaseDate() {
-        assertEquals("EDO1136", EdoCalculator.seriesCode(LocalDate.of(2026, 11, 2)));
-        assertEquals("EDO0636", EdoCalculator.seriesCode(LocalDate.of(2026, 6, 1)));
+        assertEquals("EDO1141", EdoCalculator.seriesCode(LocalDate.of(2031, 11, 5)));
+        assertEquals("EDO0641", EdoCalculator.seriesCode(LocalDate.of(2031, 6, 1)));
     }
 
     @Test
-    void firstYearMatchesBank() {
-        assertValue("104.51", value("2026-01-12", s("5.60", "2.00"), NO_CPI, "2026-11-02"));
-        assertValue("103.76", value("2026-03-02", s("5.60", "2.00"), NO_CPI, "2026-11-02"));
-        assertValue("100.89", value("2026-09-02", s("5.35", "2.00"), NO_CPI, "2026-11-02"));
-        assertValue("100.00", value("2026-11-02", s("5.60", "2.00"), NO_CPI, "2026-11-02"));
-        assertFalse(value("2026-01-12", s("5.60", "2.00"), NO_CPI, "2026-11-02").estimated());
+    void firstYearInterestIsRoundedHalfUpPerBond() {
+        // 100 * rate * days / 365, in a period of 365 days: 4.5107, 3.7589 and 0.8941.
+        assertValue("104.51", value("2031-01-15", s("5.60", "2.00"), NO_CPI, "2031-11-05")); // 294 days
+        assertValue("103.76", value("2031-01-15", s("5.60", "2.00"), NO_CPI, "2031-09-17")); // 245 days
+        assertValue("100.89", value("2031-01-15", s("5.35", "2.00"), NO_CPI, "2031-03-17")); // 61 days
+        assertValue("100.00", value("2031-01-15", s("5.60", "2.00"), NO_CPI, "2031-01-15"));
+        assertFalse(value("2031-01-15", s("5.60", "2.00"), NO_CPI, "2031-11-05").estimated());
     }
 
     @Test
     void secondYearCapitalisesWithInflation() {
-        var cpi = cpi("2026-12", "3.0");
+        // 2033-2035 has no leap day, so both periods have 365 days.
+        var cpi = cpi("2033-12", "3.0");
         var series = s("5.60", "2.00");
-        BondValue atAnniversary = value("2026-01-12", series, cpi, "2027-01-12");
+        BondValue atAnniversary = value("2033-01-15", series, cpi, "2034-01-15");
         assertValue("105.60", atAnniversary);
         assertFalse(atAnniversary.estimated());
-        BondValue partial = value("2026-01-12", series, cpi, "2027-07-13");
+        BondValue partial = value("2033-01-15", series, cpi, "2034-07-16");
         assertValue("108.23", partial);
         assertFalse(partial.estimated());
         assertTrue(partial.missingCpi().isEmpty());
@@ -67,28 +69,28 @@ class EdoCalculatorTest {
 
     @Test
     void negativeInflationIsFloorAtZero() {
-        assertValue("106.65", value("2026-01-12", s("5.60", "2.00"), cpi("2026-12", "-1.0"), "2027-07-13"));
+        assertValue("106.65", value("2033-01-15", s("5.60", "2.00"), cpi("2033-12", "-1.0"), "2034-07-16"));
     }
 
     @Test
     void missingCpiIsEstimatedWithMarginOnly() {
-        BondValue v = value("2026-01-12", s("5.60", "2.00"), NO_CPI, "2027-07-13");
+        BondValue v = value("2033-01-15", s("5.60", "2.00"), NO_CPI, "2034-07-16");
         assertValue("106.65", v);
         assertTrue(v.estimated());
-        assertEquals(Set.of(YearMonth.of(2026, 12)), v.missingCpi());
+        assertEquals(Set.of(YearMonth.of(2033, 12)), v.missingCpi());
     }
 
     @Test
     void valueIsFrozenAfterMaturity() {
         var series = s("5.60", "2.00");
-        BondValue atMaturity = value("2026-01-12", series, NO_CPI, "2036-01-12");
-        assertEquals(atMaturity.value(), value("2026-01-12", series, NO_CPI, "2040-01-01").value());
+        BondValue atMaturity = value("2033-01-15", series, NO_CPI, "2043-01-15");
+        assertEquals(atMaturity.value(), value("2033-01-15", series, NO_CPI, "2047-01-01").value());
         assertEquals(9, atMaturity.missingCpi().size());
     }
 
     @Test
     void dateBeforePurchaseIsRejected() {
         assertThrows(IllegalArgumentException.class,
-                () -> value("2026-01-12", s("5.60", "2.00"), NO_CPI, "2026-01-11"));
+                () -> value("2033-01-15", s("5.60", "2.00"), NO_CPI, "2033-01-14"));
     }
 }

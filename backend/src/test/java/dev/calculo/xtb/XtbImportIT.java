@@ -23,7 +23,7 @@ import org.springframework.util.MultiValueMap;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class XtbImportIT extends PostgresTestBase {
-    private static final double T1 = XtbFixture.serial(Instant.parse("2026-03-02T10:00:00Z"));
+    private static final double T1 = XtbFixture.serial(Instant.parse("2026-03-01T10:00:00Z"));
     private static final double T2 = XtbFixture.serial(Instant.parse("2026-04-02T10:00:00Z"));
     private static final double T3 = XtbFixture.serial(Instant.parse("2026-05-02T10:00:00Z"));
 

@@ -80,7 +80,7 @@ class PortfolioCalculatorTest {
 
     private static List<OperationRow> basicOps() {
         return List.of(
-                deposit("xtb:IKE", "2026-03-02", "1000"),
+                deposit("xtb:IKE", "2026-03-01", "1000"),
                 buy("xtb:IKE", "AAA.DE", "2026-03-03", "900", "p1", "10"),
                 dividend("xtb:IKE", "AAA.DE", "2026-04-01", "10"));
     }
@@ -150,7 +150,7 @@ class PortfolioCalculatorTest {
 
     @Test
     void zeroCashIsNotShown() {
-        List<OperationRow> ops = List.of(deposit("xtb:IKE", "2026-03-02", "900"),
+        List<OperationRow> ops = List.of(deposit("xtb:IKE", "2026-03-01", "900"),
                 buy("xtb:IKE", "AAA.DE", "2026-03-03", "900", "p1", "10"));
         PortfolioView v = PortfolioCalculator.view(inputs(List.of(IKE), ops), "all");
         assertThat(v.positions()).extracting(PositionRow::key).containsExactly("AAA.DE");
@@ -189,7 +189,7 @@ class PortfolioCalculatorTest {
 
         PortfolioView all = PortfolioCalculator.view(in, "all");
         assertThat(row(all, "AAA.DE").firstDay()).isEqualTo(LocalDate.parse("2026-03-03"));
-        assertThat(row(all, "cash").firstDay()).isEqualTo(LocalDate.parse("2026-03-02"));
+        assertThat(row(all, "cash").firstDay()).isEqualTo(LocalDate.parse("2026-03-01"));
         assertThat(row(all, "edo").firstDay()).isEqualTo(LocalDate.parse("2026-10-02"));
 
         PortfolioView trades = PortfolioCalculator.view(in, "xtb:Trades");
@@ -248,7 +248,7 @@ class PortfolioCalculatorTest {
     void seriesHasOnePointPerDayFromFirstDepositAndWeekendRepeatsLastPrice() {
         PortfolioView v = PortfolioCalculator.view(basic(), "all");
         List<SeriesPoint> s = v.series();
-        assertThat(s.get(0).day()).isEqualTo(LocalDate.parse("2026-03-02"));
+        assertThat(s.get(0).day()).isEqualTo(LocalDate.parse("2026-03-01"));
         assertThat(s.get(s.size() - 1).day()).isEqualTo(TODAY);
         assertThat(s).hasSize((int) java.time.temporal.ChronoUnit.DAYS.between(s.get(0).day(), TODAY) + 1);
         for (int i = 1; i < s.size(); i++) {
@@ -284,11 +284,11 @@ class PortfolioCalculatorTest {
 
     @Test
     void dayIsCalculatedInWarsawTime() {
-        // 23:30 UTC on 2026-03-02 is already 2026-03-03 in Warsaw.
+        // 23:30 UTC on 2026-04-14 is already 2026-04-15 in Warsaw.
         OperationRow late = new OperationRow("xtb:IKE", "late", OperationType.DEPOSIT, null,
-                Instant.parse("2026-03-02T23:30:00Z"), bd("100"), null, null, null);
+                Instant.parse("2026-04-14T23:30:00Z"), bd("100"), null, null, null);
         PortfolioView v = PortfolioCalculator.view(inputs(List.of(IKE), List.of(late)), "all");
-        assertThat(v.series().get(0).day()).isEqualTo(LocalDate.parse("2026-03-03"));
+        assertThat(v.series().get(0).day()).isEqualTo(LocalDate.parse("2026-04-15"));
     }
 
     @Test
@@ -408,7 +408,7 @@ class PortfolioCalculatorTest {
         PortfolioView shortHistory = PortfolioCalculator.view(basic(), "all");
         assertThat(shortHistory.summary().returnAnnualized()).isFalse();
         assertThat(shortHistory.summary().returnValue()).isNotNull();
-        // 1000 -> 1110 over 245 days: cumulative return must be 11 percent, in percent units like gainPct
+        // 1000 -> 1110 over 246 days: cumulative return must be 11 percent, in percent units like gainPct
         assertThat(shortHistory.summary().returnValue()).isEqualTo(11.0, org.assertj.core.data.Offset.offset(1e-4));
         SeriesPoint last = shortHistory.series().get(shortHistory.series().size() - 1);
         assertThat(last.cumulativeReturn()).isEqualTo(11.0, org.assertj.core.data.Offset.offset(1e-4));
@@ -423,7 +423,7 @@ class PortfolioCalculatorTest {
     @Test
     void detailMergesPurchaseRowsSharingPositionIdWithWeightedPrice() {
         List<OperationRow> ops = new ArrayList<>();
-        ops.add(deposit("xtb:IKE", "2026-03-02", "2000"));
+        ops.add(deposit("xtb:IKE", "2026-03-01", "2000"));
         ops.add(op("xtb:IKE", OperationType.PURCHASE, "AAA.DE", "2026-03-03", "-500", "p1", "10", "50"));
         ops.add(op("xtb:IKE", OperationType.PURCHASE, "AAA.DE", "2026-03-03", "-260", "p1", "5", "52"));
         ops.add(buy("xtb:IKE", "AAA.DE", "2026-05-02", "100", "p2", "1"));

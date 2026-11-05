@@ -35,6 +35,19 @@ public class PriceSyncService {
     private static final int FX_LOOKBACK_DAYS = 7;
     /** How long to leave a provider alone after a 429 that does not say. */
     private static final Duration DEFAULT_COOLDOWN = Duration.ofHours(1);
+    /** {@link #syncStatus()} key for a provider that cannot work at all (e.g. no API key). */
+    public static final String PROVIDER_STATUS = "PROVIDER";
+
+    /** From this hour in Warsaw the day's close counts as final (the provider publishes closes after the session). */
+    private static final java.time.LocalTime SETTLED_FROM = java.time.LocalTime.of(22, 0);
+
+    /** The latest weekday whose close is final: today from {@link #SETTLED_FROM} in Warsaw, else an earlier day. */
+    static LocalDate lastSettledDay(Instant now) {
+        java.time.LocalDateTime local = java.time.LocalDateTime.ofInstant(now, ClockConfig.WARSAW);
+        LocalDate day = local.toLocalTime().isBefore(SETTLED_FROM) ? local.toLocalDate().minusDays(1) : local.toLocalDate();
+        while (day.getDayOfWeek().getValue() > 5) day = day.minusDays(1);
+        return day;
+    }
 
     private final LedgerRepository ledger;
     private final MarketDataRepository repository;
@@ -110,7 +123,8 @@ public class PriceSyncService {
         if (props.syncOnImport()) syncAsync();
     }
 
-    @Scheduled(cron = "${calculo.prices.cron:0 30 18 * * *}", zone = "Europe/Warsaw")
+    // Half an hour after the day counts as settled (see lastSettledDay), so the evening run gets that day's close.
+    @Scheduled(cron = "${calculo.prices.cron:0 30 22 * * *}", zone = "Europe/Warsaw")
     void scheduled() {
         if (props.scheduleEnabled()) syncAsync();
     }
@@ -129,6 +143,9 @@ public class PriceSyncService {
         inFlight.incrementAndGet();
         try {
             syncEverything();
+        } catch (ProviderNotConfiguredException e) {
+            status.put(PROVIDER_STATUS, String.valueOf(e.getMessage()));
+            log.warn("Price sync stopped: {}", e.getMessage());
         } catch (RateLimitedException e) {
             Duration wait = e.retryAfter() == null ? DEFAULT_COOLDOWN : e.retryAfter();
             notBefore = clock.instant().plus(wait);
@@ -138,15 +155,16 @@ public class PriceSyncService {
         }
     }
 
-    private void syncEverything() throws RateLimitedException {
+    private void syncEverything() throws RateLimitedException, ProviderNotConfiguredException {
         LocalDate today = LocalDate.now(clock.withZone(ClockConfig.WARSAW));
+        LocalDate settled = lastSettledDay(clock.instant());
         Map<String, LocalDate> firstDays = firstOperationDays();
         Map<String, String> currencies = new HashMap<>();
         for (InstrumentRow instrument : ledger.instruments()) {
             LocalDate firstDay = firstDays.get(instrument.ticker());
             if (firstDay == null) continue;
             if (instrument.currency() != null) currencies.put(instrument.ticker(), instrument.currency());
-            syncTicker(instrument, firstDay, today).ifPresent(c -> currencies.put(instrument.ticker(), c));
+            syncTicker(instrument, firstDay, settled).ifPresent(c -> currencies.put(instrument.ticker(), c));
         }
         Map<String, LocalDate> fxStart = new HashMap<>();
         currencies.forEach((ticker, currency) -> {
@@ -156,16 +174,16 @@ public class PriceSyncService {
         for (Map.Entry<String, LocalDate> e : fxStart.entrySet()) syncFx(e.getKey(), e.getValue(), today);
     }
 
-    private java.util.Optional<String> syncTicker(InstrumentRow instrument, LocalDate firstDay, LocalDate today)
-            throws RateLimitedException {
+    /** Fetches closes up to {@code settled} only, so a stored day never changes and is never asked for again. */
+    private java.util.Optional<String> syncTicker(InstrumentRow instrument, LocalDate firstDay, LocalDate settled)
+            throws RateLimitedException, ProviderNotConfiguredException {
         String ticker = instrument.ticker();
         try {
             // All-or-nothing: every range is fetched before anything is stored, so a failure leaves no gap.
-            // Re-fetching the last stored day corrects a close saved while the market was still open.
             java.util.List<DailyPrice> fetched = new java.util.ArrayList<>();
             String currency = null;
-            for (DateRange range : missingRanges(firstDay, repository.earliestPriceDay(ticker),
-                    repository.latestPriceDay(ticker), today)) {
+            for (DateRange range : missingPriceRanges(firstDay, repository.earliestPriceDay(ticker),
+                    repository.latestPriceDay(ticker), settled)) {
                 PriceSeries series = prices.history(symbols.symbol(ticker, instrument.priceSymbol()),
                         range.from(), range.to());
                 fetched.addAll(series.prices());
@@ -174,7 +192,10 @@ public class PriceSyncService {
             if (currency == null) return java.util.Optional.empty();
             repository.savePrices(ticker, currency, fetched);
             status.remove(ticker);
+            status.remove(PROVIDER_STATUS);
             return java.util.Optional.of(currency);
+        } catch (ProviderNotConfiguredException e) {
+            throw e;
         } catch (RateLimitedException e) {
             status.put(ticker, String.valueOf(e.getMessage()));
             throw e;
@@ -216,6 +237,19 @@ public class PriceSyncService {
         }
         if (needFrom.isBefore(earliest.get())) ranges.add(new DateRange(needFrom, earliest.get()));
         if (!latest.get().isAfter(today)) ranges.add(new DateRange(latest.get(), today));
+        return ranges;
+    }
+
+    /** Like {@link #missingRanges}, but the stored days are final, so the newer part starts the day after. */
+    private static java.util.List<DateRange> missingPriceRanges(LocalDate needFrom, java.util.Optional<LocalDate> earliest,
+                                                                 java.util.Optional<LocalDate> latest, LocalDate settled) {
+        java.util.List<DateRange> ranges = new java.util.ArrayList<>();
+        if (earliest.isEmpty() || latest.isEmpty()) {
+            if (!needFrom.isAfter(settled)) ranges.add(new DateRange(needFrom, settled));
+            return ranges;
+        }
+        if (needFrom.isBefore(earliest.get())) ranges.add(new DateRange(needFrom, earliest.get()));
+        if (latest.get().isBefore(settled)) ranges.add(new DateRange(latest.get().plusDays(1), settled));
         return ranges;
     }
 

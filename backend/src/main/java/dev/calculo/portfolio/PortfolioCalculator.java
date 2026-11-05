@@ -13,6 +13,7 @@ import dev.calculo.portfolio.PortfolioView.PurchaseRow;
 import dev.calculo.portfolio.PortfolioView.SeriesPoint;
 import dev.calculo.portfolio.PortfolioView.Summary;
 import dev.calculo.prices.MarketData.PricedAt;
+import dev.calculo.prices.PriceSyncService;
 import dev.calculo.xtb.LedgerRepository.InstrumentRow;
 import dev.calculo.xtb.LedgerRepository.OperationRow;
 import dev.calculo.xtb.LedgerRepository.SnapshotRow;
@@ -351,7 +352,11 @@ public final class PortfolioCalculator {
         }
 
         private void syncWarning(List<String> w) {
+            if (in.syncStatus().containsKey(PriceSyncService.PROVIDER_STATUS)) {
+                w.add("Notowania nie są pobierane: sprawdź klucz EODHD_API_KEY w pliku .env.");
+            }
             List<String> failed = new TreeSet<>(in.syncStatus().keySet()).stream()
+                    .filter(k -> !k.equals(PriceSyncService.PROVIDER_STATUS))
                     .map(k -> k.startsWith("FX:") ? "kurs " + k.substring(3) : k).toList();
             if (!failed.isEmpty()) {
                 w.add("Nie udało się zaktualizować notowań: " + String.join(", ", failed) + ".");

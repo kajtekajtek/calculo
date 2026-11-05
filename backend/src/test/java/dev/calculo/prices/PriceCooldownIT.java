@@ -140,7 +140,8 @@ class PriceCooldownIT extends PostgresTestBase {
 
         assertThat(PRICE_CALLS).hasSize(1);
         assertThat(FX_CALLS).isEmpty();
-        assertThat(sync.syncStatus()).containsKey(PRICE_CALLS.get(0));
+        assertThat(sync.syncStatus()).containsOnlyKeys("AAA.DE"); // keyed by ledger ticker, not provider symbol
+        assertThat(PRICE_CALLS).containsExactly("AAA.XETRA");
         Map<?, ?> status = status();
         assertThat(status.get("running")).isEqualTo(false);
         assertThat(Instant.parse((String) status.get("notBefore"))).isEqualTo(CLOCK.instant().plusSeconds(120));

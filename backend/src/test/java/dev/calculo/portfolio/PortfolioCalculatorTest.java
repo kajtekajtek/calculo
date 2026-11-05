@@ -292,6 +292,19 @@ class PortfolioCalculatorTest {
     }
 
     @Test
+    void unconfiguredPriceProviderIsOneWarningAboutTheKey() {
+        PortfolioInputs b = basic();
+        PortfolioInputs in = new PortfolioInputs(b.accounts(), b.operations(), b.bonds(), b.series(), b.cpi(),
+                b.market(), b.snapshots(), b.instruments(),
+                Map.of(dev.calculo.prices.PriceSyncService.PROVIDER_STATUS, "EODHD_API_KEY is not set"), b.today());
+
+        List<String> warnings = PortfolioCalculator.view(in, "all").warnings();
+
+        assertThat(warnings).contains("Notowania nie są pobierane: sprawdź klucz EODHD_API_KEY w pliku .env.");
+        assertThat(warnings).noneMatch(w -> w.contains(dev.calculo.prices.PriceSyncService.PROVIDER_STATUS));
+    }
+
+    @Test
     void missingPriceValuesAtCostWithWarningNamingTicker() {
         List<OperationRow> ops = new ArrayList<>(basicOps());
         ops.add(buy("xtb:IKE", "CCC.DE", "2026-03-04", "50", "p9", "5"));

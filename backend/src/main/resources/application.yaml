@@ -37,5 +37,10 @@ calculo:
     sync-on-startup: true
     sync-on-import: true
     schedule-enabled: true
-    # Ticker suffix to provider suffix, e.g. "PL=WA,US=" (an empty replacement drops the suffix).
-    suffix-map: ${CALCULO_SUFFIX_MAP:PL=WA}
+    # Ticker suffix to EODHD exchange code, e.g. "PL=WAR,DE=XETRA,US=" (an empty replacement drops the suffix).
+    suffix-map: ${CALCULO_SUFFIX_MAP:PL=WAR,DE=XETRA}
+    eodhd-api-key: ${EODHD_API_KEY:}
+    # EODHD exchange code to the currency of its closes.
+    exchange-currencies: ${CALCULO_EXCHANGE_CURRENCIES:WAR=PLN,XETRA=EUR,US=USD}
+    # Requests to EODHD per UTC day (the free plan allows 20).
+    daily-call-limit: ${CALCULO_PRICE_CALL_LIMIT:20}

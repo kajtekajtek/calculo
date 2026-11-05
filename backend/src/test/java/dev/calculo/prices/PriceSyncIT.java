@@ -42,6 +42,7 @@ class PriceSyncIT extends PostgresTestBase {
     static final List<FxCall> FX_CALLS = new CopyOnWriteArrayList<>();
     static final Set<String> FAILING_FX = ConcurrentHashMap.newKeySet();
     static final Set<String> FAILING = ConcurrentHashMap.newKeySet();
+    static volatile boolean notConfigured;
 
     @TestConfiguration
     static class Stubs {
@@ -49,8 +50,9 @@ class PriceSyncIT extends PostgresTestBase {
         PriceProvider stubPrices() {
             return (symbol, from, to) -> {
                 PRICE_CALLS.add(new PriceCall(symbol, from, to));
+                if (notConfigured) throw new ProviderNotConfiguredException("EODHD_API_KEY is not set");
                 if (FAILING.contains(symbol)) throw new PriceUnavailableException("boom " + symbol);
-                String currency = symbol.endsWith(".DE") ? "EUR" : "PLN";
+                String currency = symbol.endsWith(".XETRA") ? "EUR" : "PLN";
                 List<DailyPrice> prices = new ArrayList<>();
                 for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
                     if (d.getDayOfWeek().getValue() < 6) prices.add(new DailyPrice(d, new BigDecimal("10.00")));
@@ -93,6 +95,7 @@ class PriceSyncIT extends PostgresTestBase {
         FX_CALLS.clear();
         FAILING.clear();
         FAILING_FX.clear();
+        notConfigured = false;
         jdbc.update("delete from price_history");
         jdbc.update("delete from fx_rate");
         jdbc.update("delete from operation");
@@ -112,12 +115,13 @@ class PriceSyncIT extends PostgresTestBase {
     }
 
     @Test
-    void firstSyncStartsAtTheFirstOperationAndStoresCurrencyAndFx() {
+    void firstSyncStartsAtTheFirstOperationAndEndsAtTheLastClosedSession() {
         sync.sync();
 
+        // Monday 11:00 in Warsaw: Friday is the last session with a final close.
         assertThat(PRICE_CALLS).contains(
-                new PriceCall("AAA.DE", LocalDate.of(2026, 10, 26), LocalDate.of(2026, 11, 2)),
-                new PriceCall("BBB.OVERRIDE", LocalDate.of(2026, 10, 27), LocalDate.of(2026, 11, 2)));
+                new PriceCall("AAA.XETRA", LocalDate.of(2026, 10, 26), LocalDate.of(2026, 10, 30)),
+                new PriceCall("BBB.OVERRIDE", LocalDate.of(2026, 10, 27), LocalDate.of(2026, 10, 30)));
         assertThat(jdbc.queryForObject("select currency from instrument where ticker = 'AAA.DE'", String.class))
                 .isEqualTo("EUR");
         assertThat(jdbc.queryForObject("select currency from instrument where ticker = 'BBB.PL'", String.class))
@@ -137,21 +141,48 @@ class PriceSyncIT extends PostgresTestBase {
     @Test
     void laterSyncFillsGapsFromTheLastStoredDay() {
         jdbc.update("insert into price_history (ticker, day, close, currency) values ('AAA.DE', '2026-10-29', 9, 'EUR')");
-        jdbc.update("insert into price_history (ticker, day, close, currency) values ('BBB.PL', '2026-11-02', 9, 'PLN')");
+        // BBB already has every day from its first operation to the last closed session.
+        jdbc.update("insert into price_history (ticker, day, close, currency) values ('BBB.PL', '2026-10-27', 9, 'PLN')");
+        jdbc.update("insert into price_history (ticker, day, close, currency) values ('BBB.PL', '2026-10-30', 9, 'PLN')");
         jdbc.update("insert into fx_rate (currency, day, mid) values ('EUR', '2026-10-30', 4.2)");
 
         sync.sync();
 
-        assertThat(PRICE_CALLS).contains(new PriceCall("AAA.DE", LocalDate.of(2026, 10, 29), LocalDate.of(2026, 11, 2)));
-        // Already up to date: only the last stored day (today) is re-fetched, not the whole history.
-        assertThat(PRICE_CALLS).contains(
-                new PriceCall("BBB.OVERRIDE", LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 2)));
+        assertThat(PRICE_CALLS).contains(new PriceCall("AAA.XETRA", LocalDate.of(2026, 10, 30), LocalDate.of(2026, 10, 30)));
+        // Already has the last closed session: not asked again, which saves the provider's daily allowance.
+        assertThat(PRICE_CALLS).extracting(PriceCall::symbol).doesNotContain("BBB.OVERRIDE");
         assertThat(FX_CALLS).extracting(FxCall::from).contains(LocalDate.of(2026, 10, 30));
     }
 
     @Test
+    void aSecondSyncOnTheSameDayAsksTheProviderForNothing() {
+        sync.sync();
+        PRICE_CALLS.clear();
+
+        sync.sync();
+
+        assertThat(PRICE_CALLS).isEmpty();
+    }
+
+    @Test
+    void unconfiguredProviderStopsTheRunAndIsReportedOnce() {
+        notConfigured = true;
+
+        sync.sync();
+
+        assertThat(PRICE_CALLS).hasSize(1);
+        assertThat(sync.syncStatus()).containsOnlyKeys(PriceSyncService.PROVIDER_STATUS);
+        assertThat(sync.state().notBefore()).isNull(); // not a rate limit: fixing the key works at once
+
+        notConfigured = false;
+        sync.sync();
+
+        assertThat(sync.syncStatus()).isEmpty();
+    }
+
+    @Test
     void oneFailingTickerKeepsTheOthersAndIsReportedUntilItSucceeds() {
-        FAILING.add("AAA.DE");
+        FAILING.add("AAA.XETRA");
 
         sync.sync();
 
@@ -206,7 +237,7 @@ class PriceSyncIT extends PostgresTestBase {
 
         sync.sync();
 
-        assertThat(PRICE_CALLS).contains(new PriceCall("AAA.DE", LocalDate.of(2026, 10, 26), LocalDate.of(2026, 10, 29)));
+        assertThat(PRICE_CALLS).contains(new PriceCall("AAA.XETRA", LocalDate.of(2026, 10, 26), LocalDate.of(2026, 10, 29)));
         assertThat(FX_CALLS).extracting(FxCall::from).contains(LocalDate.of(2026, 10, 19));
         assertThat(jdbc.queryForObject("select min(day) from price_history where ticker = 'AAA.DE'", java.sql.Date.class))
                 .hasToString("2026-10-26");

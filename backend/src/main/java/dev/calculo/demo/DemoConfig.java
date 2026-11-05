@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
-/** Replaces the Yahoo and NBP providers (see PricesConfig) so the demo works offline. */
+/** Replaces the EODHD and NBP providers (see PricesConfig) so the demo works offline. */
 @Configuration
 @Profile("demo")
 class DemoConfig {

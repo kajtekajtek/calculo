@@ -23,7 +23,10 @@ Zmienne w pliku `.env`:
 | `POSTGRES_PASSWORD` | hasło bazy danych (baza nie jest wystawiona na zewnątrz) |
 | `CALCULO_PASSWORD` | hasło do logowania w aplikacji |
 | `CALCULO_BOND_ACCOUNT_NAME` | nazwa konta z obligacjami wyświetlana w aplikacji (domyślnie `Obligacje`). Liczy się tylko przy zakładaniu tego konta: późniejsza zmiana nie wpływa na konto, które już istnieje |
-| `CALCULO_SUFFIX_MAP` | zamiana przyrostków tickerów XTB na przyrostki dostawcy notowań, w formie `PRZYROSTEK=ZAMIANA` rozdzielone przecinkami (domyślnie `PL=WA`, czyli `AAA.PL` to `AAA.WA`). Pusta zamiana usuwa przyrostek: `PL=WA,US=` zamienia też `XXX.US` na `XXX`. Wartość zastępuje całą domyślną mapę, więc zostaw w niej `PL=WA` |
+| `EODHD_API_KEY` | klucz do notowań z [EODHD](https://eodhd.com). Darmowe konto wystarcza: 20 zapytań dziennie i rok historii, do użytku osobistego. Bez klucza aplikacja działa, ale wycenia akcje i ETF-y po koszcie zakupu i mówi o tym na ekranie głównym |
+| `CALCULO_SUFFIX_MAP` | zamiana przyrostków tickerów XTB na kody giełd EODHD, w formie `PRZYROSTEK=ZAMIANA` rozdzielone przecinkami (domyślnie `PL=WAR,DE=XETRA`, czyli `AAA.PL` to `AAA.WAR`). Pusta zamiana usuwa przyrostek. Wartość zastępuje całą domyślną mapę, więc zostaw w niej domyślne pary |
+| `CALCULO_EXCHANGE_CURRENCIES` | waluta notowań na każdej giełdzie, bo EODHD jej nie podaje (domyślnie `WAR=PLN,XETRA=EUR,US=USD`). Instrument z giełdy spoza tej listy nie jest wyceniany, a ekran główny o tym ostrzega |
+| `CALCULO_PRICE_CALL_LIMIT` | ile zapytań do EODHD aplikacja może wysłać w ciągu doby liczonej w UTC (domyślnie 20, jak w darmowym planie) |
 
 Brak którejś z wymaganych zmiennych kończy się czytelnym komunikatem przy starcie. Dane bazy leżą w wolumenie Dockera `calculo-db`, więc przeżywają restart i aktualizację obrazu. Kontenery startują same po restarcie komputera, dopóki ich nie zatrzymasz (`docker compose stop`).
 
@@ -57,7 +60,7 @@ Zakupy obligacji EDO dodajesz ręcznie w „Aktualizuj dane” (data i liczba sz
 
 ## Notowania
 
-Notowania i kursy odświeżają się przy starcie aplikacji, po każdym imporcie, codziennie o 18:30 i po kliknięciu „Odśwież notowania” na ekranie głównym. Gdy serwis notowań odpowie, że zapytań jest za dużo (HTTP 429), aplikacja przerywa odświeżanie i nie pyta go ponownie przed czasem, który wskazał, a gdy go nie wskazał, przez godzinę. Ekran główny pokazuje wtedy ten czas. Po restarcie aplikacji ta przerwa jest liczona od nowa przy pierwszej odmowie.
+Notowania i kursy odświeżają się przy starcie aplikacji, po każdym imporcie, codziennie o 22:30 i po kliknięciu „Odśwież notowania” na ekranie głównym. Aplikacja zapisuje tylko ostateczne ceny zamknięcia (z dnia, którego sesja skończyła się przed 22:00) i nie pyta ponownie o dni, które już ma, więc zwykle wysyła jedno zapytanie na instrument dziennie. Liczba zapytań jest liczona w bazie, więc restart jej nie zeruje. Po wyczerpaniu dziennego limitu albo gdy EODHD odpowie, że zapytań jest za dużo, aplikacja czeka do północy UTC. Ekran główny pokazuje wtedy ten czas.
 
 ## Ograniczenia
 
@@ -65,7 +68,7 @@ Notowania i kursy odświeżają się przy starcie aplikacji, po każdym imporcie
 - Brak sald początkowych: historia musi zaczynać się od pierwszej wpłaty.
 - Jeden użytkownik, jedno hasło.
 - Brak HTTPS i brak gotowego wdrożenia poza siecią domową.
-- Ceny i kursy walut pochodzą z publicznych źródeł (notowania z Yahoo Finance, kursy z NBP) i mogą się opóźniać lub być chwilowo niedostępne.
+- Notowania pochodzą z EODHD (ceny zamknięcia), a kursy walut z NBP. Mogą się opóźniać lub być chwilowo niedostępne. Darmowy plan EODHD daje tylko ostatni rok historii, więc przy nowej bazie z dłuższą historią najstarsze dni są wyceniane po koszcie.
 - Stopa zwrotu nie jest ważona czasem.
 
 ## Co przed wystawieniem do internetu

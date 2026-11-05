@@ -10,7 +10,13 @@ final class DemoMarket {
     private DemoMarket() {}
 
     static String currency(String symbol) {
-        return symbol.endsWith(".DE") ? "EUR" : "PLN";
+        return symbol.endsWith(".DE") || symbol.endsWith(".XETRA") ? "EUR" : "PLN";
+    }
+
+    /** The name without the exchange suffix, so a ledger ticker and its mapped symbol share one price path. */
+    private static String root(String symbol) {
+        int dot = symbol.lastIndexOf('.');
+        return dot < 0 ? symbol : symbol.substring(0, dot);
     }
 
     static boolean isTradingDay(LocalDate day) {
@@ -20,14 +26,15 @@ final class DemoMarket {
 
     /** Closing price in the instrument's own currency: a base level, a slow trend and a wave. */
     static BigDecimal close(String symbol, LocalDate day) {
-        double base = switch (symbol) {
-            case "AAA.DE" -> 80;
-            case "BBB.WA", "BBB.PL" -> 45;
-            case "CCC.WA", "CCC.PL" -> 120;
-            default -> 50 + Math.floorMod(symbol.hashCode(), 100);
+        String name = root(symbol);
+        double base = switch (name) {
+            case "AAA" -> 80;
+            case "BBB" -> 45;
+            case "CCC" -> 120;
+            default -> 50 + Math.floorMod(name.hashCode(), 100);
         };
         long t = day.toEpochDay();
-        double phase = Math.floorMod(symbol.hashCode(), 628) / 100.0;
+        double phase = Math.floorMod(name.hashCode(), 628) / 100.0;
         double factor = 1 + 0.0004 * (t % 1000) + 0.08 * Math.sin(t / 17.0 + phase) + 0.03 * Math.sin(t / 5.0);
         return BigDecimal.valueOf(base * factor).setScale(2, RoundingMode.HALF_UP);
     }

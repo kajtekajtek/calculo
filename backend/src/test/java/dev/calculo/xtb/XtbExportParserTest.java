@@ -191,6 +191,22 @@ class XtbExportParserTest {
     }
 
     @Test
+    void singleXlsxWithWideDataDescriptorsAsXtbWritesThemGivesOneAccount() {
+        byte[] file = XtbFixture.withWideDataDescriptors(
+                ike().cash("Deposit", "", "", "", T, 1.0, 1L, "", "IKE", null).build());
+        assertThat(parse("one.xlsx", file).accounts()).extracting(ParsedAccount::product).containsExactly("IKE");
+    }
+
+    @Test
+    void zipWithWideDataDescriptorsGivesItsWorkbooks() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        files.put("one.xlsx", XtbFixture.withWideDataDescriptors(
+                ike().cash("Deposit", "", "", "", T, 1.0, 1L, "", "IKE", null).build()));
+        ParsedExport p = parse("export.zip", XtbFixture.withWideDataDescriptors(XtbFixture.zip(files)));
+        assertThat(p.accounts()).extracting(ParsedAccount::product).containsExactly("IKE");
+    }
+
+    @Test
     void unknownTypeBecomesProblemWithRowNumberAndRestIsParsed() {
         byte[] file = ike()
                 .cash("Deposit", "", "", "", T, 1.0, 1L, "", "IKE", null)

@@ -5,6 +5,9 @@ import dev.calculo.xtb.ParsedExport.ImportProblem;
 import dev.calculo.xtb.ParsedExport.OpenPosition;
 import dev.calculo.xtb.ParsedExport.OperationType;
 import dev.calculo.xtb.ParsedExport.ParsedAccount;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipFile;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
@@ -19,6 +22,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,8 +30,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 /** Parses XTB account exports (a ZIP of XLSX files or a single XLSX) into plain records. No I/O beyond the stream. */
 public final class XtbExportParser {
@@ -66,26 +68,29 @@ public final class XtbExportParser {
         long total = 0;
         int entries = 0;
         boolean singleXlsx = false;
-        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(whole))) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
+        // Read through the central directory, not as a stream: XTB writes data descriptors with 8-byte sizes but
+        // no ZIP64 marker, which java.util.zip.ZipInputStream rejects.
+        try (ZipFile zip = ZipFile.builder().setSeekableByteChannel(new SeekableInMemoryByteChannel(whole)).get()) {
+            for (ZipArchiveEntry entry : Collections.list(zip.getEntriesInPhysicalOrder())) {
                 if (entry.isDirectory()) continue;
                 entries++;
                 String name = entry.getName();
                 if (name.equals("[Content_Types].xml")) singleXlsx = true;
+                if (!singleXlsx && entries > MAX_ZIP_FILES) {
+                    throw new XtbFormatException("Archiwum zawiera zbyt wiele plików.");
+                }
                 boolean wanted = name.toLowerCase(Locale.ROOT).endsWith(".xlsx") && !name.startsWith("__MACOSX/");
                 ByteArrayOutputStream buf = new ByteArrayOutputStream();
                 byte[] chunk = new byte[8192];
                 int n;
-                while ((n = zip.read(chunk)) > 0) {
-                    total += n;
-                    if (total > MAX_UNPACKED_BYTES) {
-                        throw new XtbFormatException("Archiwum jest zbyt duże po rozpakowaniu.");
+                try (InputStream data = zip.getInputStream(entry)) {
+                    while ((n = data.read(chunk)) > 0) {
+                        total += n;
+                        if (total > MAX_UNPACKED_BYTES) {
+                            throw new XtbFormatException("Archiwum jest zbyt duże po rozpakowaniu.");
+                        }
+                        if (wanted) buf.write(chunk, 0, n);
                     }
-                    if (wanted) buf.write(chunk, 0, n);
-                }
-                if (!singleXlsx && entries > MAX_ZIP_FILES) {
-                    throw new XtbFormatException("Archiwum zawiera zbyt wiele plików.");
                 }
                 if (wanted) xlsx.put(name, buf.toByteArray());
             }

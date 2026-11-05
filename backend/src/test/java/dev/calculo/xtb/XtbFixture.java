@@ -4,16 +4,24 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.zip.CRC32;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 /** Builds synthetic XTB export files (XLSX and ZIP) in memory. Reused by other test classes. */
@@ -137,6 +145,59 @@ public final class XtbFixture {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Rewrites a ZIP (an XLSX is one) the way real XTB exports are written: each entry is followed by a data
+     * descriptor whose sizes take 8 bytes, with no ZIP64 extra field announcing it. Readers that trust the central
+     * directory cope; java.util.zip.ZipInputStream does not.
+     */
+    public static byte[] withWideDataDescriptors(byte[] zip) {
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip))) {
+            for (ZipEntry e; (e = in.getNextEntry()) != null; ) entries.put(e.getName(), in.readAllBytes());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        ByteArrayOutputStream central = new ByteArrayOutputStream();
+        for (Map.Entry<String, byte[]> e : entries.entrySet()) {
+            byte[] name = e.getKey().getBytes(StandardCharsets.UTF_8);
+            byte[] data = e.getValue();
+            CRC32 crc = new CRC32();
+            crc.update(data);
+            Deflater deflater = new Deflater(Deflater.DEFAULT_COMPRESSION, true);
+            deflater.setInput(data);
+            deflater.finish();
+            ByteArrayOutputStream packed = new ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            while (!deflater.finished()) packed.write(chunk, 0, deflater.deflate(chunk));
+            deflater.end();
+            byte[] compressed = packed.toByteArray();
+            int offset = body.size();
+            // Local header: sizes and CRC deferred to the data descriptor (flag bit 3).
+            body.writeBytes(le(30).putInt(0x04034b50).putShort((short) 20).putShort((short) 8).putShort((short) 8)
+                    .putInt(0).putInt(0).putInt(0).putInt(0).putShort((short) name.length).putShort((short) 0).array());
+            body.writeBytes(name);
+            body.writeBytes(compressed);
+            body.writeBytes(le(24).putInt(0x08074b50).putInt((int) crc.getValue())
+                    .putLong(compressed.length).putLong(data.length).array());
+            central.writeBytes(le(46).putInt(0x02014b50).putShort((short) 20).putShort((short) 20).putShort((short) 8)
+                    .putShort((short) 8).putInt(0).putInt((int) crc.getValue()).putInt(compressed.length)
+                    .putInt(data.length).putShort((short) name.length).putShort((short) 0).putShort((short) 0)
+                    .putShort((short) 0).putShort((short) 0).putInt(0).putInt(offset).array());
+            central.writeBytes(name);
+        }
+        int centralOffset = body.size();
+        body.writeBytes(central.toByteArray());
+        body.writeBytes(le(22).putInt(0x06054b50).putShort((short) 0).putShort((short) 0)
+                .putShort((short) entries.size()).putShort((short) entries.size()).putInt(central.size())
+                .putInt(centralOffset).putShort((short) 0).array());
+        return body.toByteArray();
+    }
+
+    private static ByteBuffer le(int size) {
+        return ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
     }
 
     private void meta(Sheet s, String title) {

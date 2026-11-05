@@ -94,4 +94,4 @@ Moduły backendu (`backend/src/main/java/dev/calculo`): `xtb` (parser eksportu),
 
 ## Licencja
 
-Licencja nie została jeszcze wybrana. Do czasu jej wybrania wszelkie prawa są zastrzeżone.
+Projekt jest udostępniony na licencji MIT, zob. plik [LICENSE](LICENSE).
